@@ -574,3 +574,6 @@ main:not(.ohne-fotos) .gespraech-kachel .kachel-label { letter-spacing: 0.14em; 
 @media (max-width: 1100px) {
   main, main.ohne-fotos { grid-template-columns: 1fr; grid-template-rows: 34% 26% 1fr; }
 }
+
+/* hidden-Attribut gewinnt immer (z.B. Foto-Leerhinweis ueber dem Bild) */
+[hidden] { display: none !important; }
