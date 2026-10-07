@@ -13,10 +13,10 @@
 <div id="startup">
   <div class="startup-box">
     <div class="orb orb-startup" aria-hidden="true"></div>
-    <h1>Gemma Display</h1>
+    <h1>Gemma</h1>
     <p>Antippen startet Vollbild und hält das Display wach.</p>
-    <button id="kiosk-btn" type="button">Kiosk starten</button>
-    <p class="startup-hinweis" id="startup-hinweis">Die Adressezeile verschwindet im Vollbild.</p>
+    <button id="kiosk-btn" type="button">Starten</button>
+    <p class="startup-hinweis" id="startup-hinweis">Danach den Orb antippen und sprechen.</p>
   </div>
 </div>
 
@@ -26,67 +26,69 @@
     <div id="datum" class="datum">Sonntag, 7. Oktober</div>
   </div>
   <div class="orb-block">
-    <div id="orb" class="orb" aria-hidden="true"><span class="orb-ring"></span></div>
-    <div id="orb-status" class="orb-status">bereit</div>
+    <button id="orb" class="orb" type="button" aria-label="Mit Gemma sprechen">
+      <span class="orb-ring"></span>
+      <span class="orb-kern" aria-hidden="true"></span>
+    </button>
+    <div id="orb-status" class="orb-status">Tippen und sprechen</div>
+  </div>
+  <div class="verbindungs-block">
+    <button id="mikro-btn" class="mikro-btn" type="button">Mikro aktivieren</button>
+    <span class="punkt-zeile">
+      <span id="punkt" class="punkt" aria-hidden="true"></span>
+      <span id="punkt-text" class="punkt-text"></span>
+    </span>
   </div>
 </header>
 
 <main>
-  <section class="antwort-kachel" id="k-antwort">
-    <div class="kachel-label">Letzte Antwort</div>
-    <div id="antwort" class="antwort-text">Noch keine Antwort im Verlauf.</div>
-    <div id="antwort-meta" class="antwort-meta"></div>
+  <section class="gespraech-kachel" id="k-gespraech">
+    <div class="kachel-label">Gespräch</div>
+    <div id="chat" class="chat"></div>
   </section>
 
   <section class="raster">
-    <div class="kachel" id="k-bruecke">
-      <div class="kachel-label">Gemma-Live Brücke</div>
-      <div class="kachel-wert">offline</div>
-      <div class="kachel-zusatz">warte auf Verbindung</div>
+    <div class="kachel" id="k-musik">
+      <div class="kachel-label">Musik</div>
+      <div class="musik-zeile">
+        <img id="musik-cover" class="musik-cover" alt="" hidden>
+        <div class="musik-text">
+          <div id="musik-titel" class="kachel-wert">—</div>
+          <div id="musik-kuenstler" class="kachel-zusatz">—</div>
+        </div>
+      </div>
+      <div class="musik-tasten">
+        <button class="taste" id="m-vorher" type="button" aria-label="Vorheriger Titel">&#9198;</button>
+        <button class="taste taste-gross" id="m-play" type="button" aria-label="Abspielen oder Pause">&#9654;</button>
+        <button class="taste" id="m-naechster" type="button" aria-label="Nächster Titel">&#9197;</button>
+      </div>
     </div>
-    <div class="kachel" id="k-session">
-      <div class="kachel-label">Gemini Session</div>
-      <div class="kachel-wert">inaktiv</div>
-      <div class="kachel-zusatz">keine Session</div>
+
+    <div class="kachel" id="k-vital">
+      <div class="kachel-label">Vitaldaten</div>
+      <div class="vital-raster">
+        <div class="vital-wert"><span id="v-puls">—</span><small>Puls</small></div>
+        <div class="vital-wert"><span id="v-schritte">—</span><small>Schritte</small></div>
+        <div class="vital-wert"><span id="v-schlaf">—</span><small>Schlaf</small></div>
+        <div class="vital-wert"><span id="v-ready">—</span><small>Fit</small></div>
+      </div>
+      <div id="v-alter" class="kachel-zusatz"></div>
     </div>
-    <div class="kachel" id="k-gespraech">
-      <div class="kachel-label">Letztes Gespräch</div>
-      <div class="kachel-wert">—</div>
-      <div class="kachel-zusatz">noch keine Daten</div>
+
+    <div class="kachel" id="k-heizung">
+      <div class="kachel-label">Heizung</div>
+      <div id="heizung-liste" class="heizung-liste"><div class="kachel-zusatz">—</div></div>
     </div>
-    <div class="kachel" id="k-geraet">
-      <div class="kachel-label">Gerät</div>
-      <div class="kachel-wert">—</div>
-      <div class="kachel-zusatz">warte auf Verlauf</div>
-    </div>
-    <div class="kachel" id="k-modell">
-      <div class="kachel-label">Modell</div>
-      <div class="kachel-wert">—</div>
-      <div class="kachel-zusatz">Brücke-Config</div>
-    </div>
-    <div class="kachel" id="k-stimme">
-      <div class="kachel-label">Stimme</div>
-      <div class="kachel-wert">—</div>
-      <div class="kachel-zusatz">Brücke-Config</div>
-    </div>
-    <div class="kachel" id="k-aktiv">
-      <div class="kachel-label">Gemma aktiv</div>
-      <div class="kachel-wert">ruht</div>
-      <div class="kachel-zusatz">kein Vorgang</div>
-    </div>
-    <div class="kachel" id="k-kiosk">
-      <div class="kachel-label">Display</div>
-      <div class="kachel-wert">—</div>
-      <div class="kachel-zusatz">Wake Lock unbekannt</div>
+
+    <div class="kachel" id="k-termine">
+      <div class="kachel-label">Termine</div>
+      <div id="termin-liste" class="termin-liste"><div class="kachel-zusatz">—</div></div>
     </div>
   </section>
 </main>
 
 <footer>
-  <span id="f-ws" class="badges badge-aus">WS aus</span>
-  <span id="f-lock" class="badges badge-aus">Lock: —</span>
-  <span id="f-voll" class="badges badge-aus">kein Vollbild</span>
-  <span class="fuss-rechts">gemma.gemivo.de</span>
+  <span id="fuss-hinweis" class="fuss-hinweis"></span>
 </footer>
 
 <div id="overlay" role="dialog" aria-modal="true" aria-hidden="true">
@@ -95,6 +97,17 @@
     <div id="overlay-label" class="ov-label"></div>
     <div id="overlay-inhalt" class="ov-inhalt"></div>
     <div id="overlay-meta" class="ov-meta"></div>
+  </div>
+</div>
+
+<div id="tippen-overlay" aria-hidden="true">
+  <div id="tippen-box">
+    <div class="ov-label">Statt sprechen: tippen</div>
+    <form id="tippen-form">
+      <input id="tippen-eingabe" type="text" autocomplete="off"
+             placeholder="Was soll Gemma tun?">
+      <button type="submit">Senden</button>
+    </form>
   </div>
 </div>
 

@@ -1,7 +1,20 @@
-/* Gemma Display, reines JS ohne Framework und ohne CDN.
-   Teile: Uhr, Wake Lock mit Video-Fallback, Vollbild/Kiosk,
-   WebSocket zur Gemma-Live-Bridge, Verlauf-Poll,
-   klickbare Kacheln mit Detail-Overlay. */
+/* Gemma Station fuer Kays Display (Echo Show 15, 1920x1080).
+   Reines JS, kein Framework, kein CDN.
+
+   Teile:
+   - Uhr/Datum, Vollbild/Kiosk, Wake Lock (mit Video-Fallback)
+   - Gespräch: WebSocket zur Gemma-Brücke, Verbindung nur auf Wunsch
+     (Orb-Tipp, Weckwort, Texteingabe) - jede Verbindung ist ein echtes
+     Gespräch und wird nach 30 s Ruhe vom Server beendet.
+   - Stimme raus: der Server schickt Gemmas Stimme als Binär-Frames
+     (PCM 16 bit, mono, 24000 Hz) - hier über WebAudio abspielen.
+   - Stimme rein: Orb antippen (Push-to-Talk) oder Weckwort. Mikrofon
+     wird einmalig mit "Mikro aktivieren" eingeschaltet; danach lauscht
+     der Weckwort-Dienst leise mit (serverseitige Erkennung) und getippte
+     Gespräche starten sofort.
+   - Kacheln: Musik, Vitaldaten, Heizung, Termine - polled über den
+     Lese-Endpunkt der Brücke. Keine Schätzwerte: fehlt eine Quelle,
+     bleibt die Kachel ehrlich leer. */
 
 "use strict";
 
@@ -9,33 +22,39 @@ const CFG = Object.assign({
   token: "",
   geraete: [],
   verlaufSek: 20,
-  wsZyklusSek: 60,
-  wsBackoffStartSek: 45,
-  wsBackoffMaxSek: 360,
-  version: "webui-1.0"
+  statusSek: 30,
+  version: "webui-2.0"
 }, window.GEMMA_CONFIG || {});
 
 const $ = (id) => document.getElementById(id);
 
 const state = {
+  /* Gespräch */
   ws: null,
   wsOnline: false,
   sessionBereit: false,
-  backoffSek: CFG.wsBackoffStartSek,
-  wsZyklusTimer: null,
-  wsNaechsterVersuch: 0,
+  willReden: false,
+  hoert: false,
+  chat: [],
+  /* Wiedergabe */
+  aCtx: null,
+  wiedergabeBis: 0,
+  quellen: new Set(),
+  audioOffen: false,
+  /* Mikrofon */
+  mikro: { stream: null, ctx: null, knoten: null, stumm: null, aktiv: false,
+           vorlauf: [], rest: null },
+  /* Weckwort-Dienst */
+  wake: { ws: null, offen: false, versuch: 0, timer: null, puffer: [] },
+  /* Sonstiges */
+  statusTimer: null,
+  leerTimer: null,
   lockTyp: null,
   lockSentinel: null,
   video: null,
-  antwortText: "",
-  antwortQuelle: "",
-  antwortZeit: null,
-  geraetName: "",
-  gespraechZeit: null,
-  gespraechMsgs: [],
-  gespraechDev: "",
-  aktivBis: 0,
-  kachelDaten: {}
+  kachelDaten: {},
+  verlaufMsgs: [],
+  denkEnde: 0
 };
 
 /* ---------------- Uhr und Datum ---------------- */
@@ -50,56 +69,622 @@ function uhrTicken() {
   });
 }
 
-/* ---------------- Kacheln ---------------- */
+/* ---------------- Anzeigen: Punkt, Orb, Chat ---------------- */
 
-function kachel(id, wert, zusatz, zustand, extra) {
-  const el = $(id);
-  if (!el) return;
-  el.querySelector(".kachel-wert").textContent = wert;
-  el.querySelector(".kachel-zusatz").textContent = zusatz;
-  el.classList.remove("ok", "warn", "fehler");
-  if (zustand) el.classList.add(zustand);
-  state.kachelDaten[id] = { wert, zusatz, zustand: zustand || "",
-    extra: extra || null, zeit: Date.now() };
-}
-
-function badge(id, text, klasse) {
-  const el = $(id);
-  el.textContent = text;
-  el.className = "badges " + klasse;
-}
-
-function relZeit(ts) {
-  if (!ts) return "";
-  const s = Math.round(Date.now() / 1000 - ts);
-  if (s < 60) return "gerade eben";
-  if (s < 3600) return "vor " + Math.floor(s / 60) + " Min";
-  if (s < 86400) return "vor " + Math.floor(s / 3600) + " Std";
-  return "vor " + Math.floor(s / 86400) + " Tagen";
+function punktSetzen(art, text) {
+  const p = $("punkt");
+  p.className = "punkt" + (art ? " " + art : "");
+  $("punkt-text").textContent = text || "";
 }
 
 function orbSetzen(zustand, text) {
   const orb = $("orb");
   orb.classList.toggle("aktiv", zustand === "aktiv");
+  orb.classList.toggle("hoert", zustand === "hoert");
+  orb.classList.toggle("spricht", zustand === "spricht");
   orb.classList.toggle("aus", zustand === "aus");
   $("orb-status").textContent = text;
 }
 
-function aktivBlinken(sek) {
-  state.aktivBis = Date.now() + sek * 1000;
+function chatLeeren() {
+  state.chat = [];
+  $("chat").innerHTML = "";
 }
 
-function antwortAnzeigen(text, quelle, ts) {
+function chatAnhaengen(wer, text) {
   if (!text) return;
-  state.antwortText = text;
-  state.antwortQuelle = quelle;
-  state.antwortZeit = ts || Math.floor(Date.now() / 1000);
-  $("antwort").textContent = text;
-  $("antwort-meta").textContent = quelle + " · " + relZeit(state.antwortZeit);
-  state.kachelDaten["k-antwort"] = {
-    wert: "", zusatz: $("antwort-meta").textContent, zustand: "",
-    extra: null, zeit: Date.now()
+  state.chat.push({ wer, text });
+  if (state.chat.length > 40) state.chat.splice(0, state.chat.length - 40);
+  const box = $("chat");
+  const zeile = document.createElement("div");
+  zeile.className = "chat-zeile" + (wer === "Kay" ? " chat-kay" : " chat-gemma");
+  const name = document.createElement("span");
+  name.className = "chat-wer";
+  name.textContent = wer === "Kay" ? "Kay" : "Gemma";
+  const txt = document.createElement("span");
+  txt.className = "chat-text";
+  txt.textContent = text;
+  zeile.append(name, txt);
+  box.append(zeile);
+  while (box.children.length > 40) box.removeChild(box.firstChild);
+  box.scrollTop = box.scrollHeight;
+}
+
+function chatAusVerlauf() {
+  if (state.chat.length || !state.verlaufMsgs.length) return;
+  for (const m of state.verlaufMsgs) {
+    chatAnhaengen(m.role === "user" ? "Kay" : "Gemma", m.content);
+  }
+}
+
+function orbTakt() {
+  if (state.hoert) { orbSetzen("hoert", "Ich höre zu … nochmal tippen beendet"); return; }
+  if (Date.now() < state.denkEnde) { orbSetzen("aktiv", "denkt nach …"); return; }
+  if (Date.now() < state.wiedergabeBis * 1000 - 1000 ||
+      (state.aCtx && state.quellen.size > 0)) {
+    orbSetzen("spricht", "ich rede … tippen, um zu antworten");
+    return;
+  }
+  if (state.willReden && !state.sessionBereit) { orbSetzen("aktiv", "verbinde …"); return; }
+  orbSetzen("", "Tippen und sprechen");
+}
+
+/* ---------------- Wiedergabe: Gemmas Stimme ---------------- */
+
+function playbackCtx() {
+  if (!state.aCtx) {
+    const AC = window.AudioContext || window.webkitAudioContext;
+    try {
+      state.aCtx = new AC({ sampleRate: 24000 });
+    } catch (e) {
+      state.aCtx = new AC();
+    }
+  }
+  if (state.aCtx.state === "suspended") {
+    state.aCtx.resume().catch(() => {});
+  }
+  return state.aCtx;
+}
+
+function resampleF32(daten, von, nach) {
+  if (Math.abs(von - nach) < 1) return daten;
+  const verhaeltnis = von / nach;
+  const n = Math.max(1, Math.floor(daten.length / verhaeltnis));
+  const raus = new Float32Array(n);
+  for (let i = 0; i < n; i++) {
+    const pos = i * verhaeltnis;
+    const i0 = Math.floor(pos);
+    const i1 = Math.min(daten.length - 1, i0 + 1);
+    raus[i] = daten[i0] + (daten[i1] - daten[i0]) * (pos - i0);
+  }
+  return raus;
+}
+
+function audioAbspielen(int16) {
+  const ctx = playbackCtx();
+  const roh = new Float32Array(int16.length);
+  for (let i = 0; i < int16.length; i++) roh[i] = int16[i] / 32768;
+  const f32 = resampleF32(roh, 24000, ctx.sampleRate);
+  const puffer = ctx.createBuffer(1, f32.length, ctx.sampleRate);
+  puffer.copyToChannel(f32, 0);
+  const quelle = ctx.createBufferSource();
+  quelle.buffer = puffer;
+  quelle.connect(ctx.destination);
+  const start = Math.max(state.wiedergabeBis, ctx.currentTime + 0.08);
+  quelle.start(start);
+  state.wiedergabeBis = start + puffer.duration;
+  state.quellen.add(quelle);
+  quelle.onended = () => state.quellen.delete(quelle);
+  state.audioOffen = true;
+}
+
+function wiedergabeStoppen() {
+  for (const q of state.quellen) {
+    try { q.stop(); } catch (e) { /* schon vorbei */ }
+  }
+  state.quellen.clear();
+  state.wiedergabeBis = 0;
+  state.audioOffen = false;
+}
+
+function wiedergabeTakt() {
+  if (!state.audioOffen || !state.aCtx || !state.wsOnline) return;
+  if (state.aCtx.currentTime > state.wiedergabeBis + 0.05) {
+    state.audioOffen = false;
+    sendeJson({ typ: "wiedergabe_leer" });
+  }
+}
+
+/* ---------------- Mikrofon ---------------- */
+
+function pcm16Aus(f32, rate) {
+  const ziel = 16000;
+  const glatt = resampleF32(f32, rate, ziel);
+  const raus = new Int16Array(glatt.length);
+  for (let i = 0; i < glatt.length; i++) {
+    const w = Math.max(-1, Math.min(1, glatt[i]));
+    raus[i] = w < 0 ? w * 32768 : w * 32767;
+  }
+  return raus;
+}
+
+async function mikroAktivieren() {
+  if (state.mikro.aktiv) return true;
+  let stream;
+  try {
+    stream = await navigator.mediaDevices.getUserMedia({
+      audio: { channelCount: 1, echoCancellation: true,
+               noiseSuppression: true, autoGainControl: true }
+    });
+  } catch (e) {
+    $("orb-status").textContent = "Mikrofon nicht verfügbar";
+    return false;
+  }
+  const AC = window.AudioContext || window.webkitAudioContext;
+  let ctx;
+  try { ctx = new AC({ sampleRate: 16000 }); } catch (e) { ctx = new AC(); }
+  const quelle = ctx.createMediaStreamSource(stream);
+  const knoten = ctx.createScriptProcessor(4096, 1, 1);
+  const stumm = ctx.createGain();
+  stumm.gain.value = 0;
+  knoten.onaudioprocess = (ev) => {
+    mikroChunk(ev.inputBuffer.getChannelData(0), ctx.sampleRate);
   };
+  quelle.connect(knoten);
+  knoten.connect(stumm);
+  stumm.connect(ctx.destination);
+  state.mikro = { stream, ctx, knoten, stumm, aktiv: true,
+                  vorlauf: [], rest: null };
+  wakeVerbinden();
+  return true;
+}
+
+function mikroChunk(f32, rate) {
+  const pcm = pcm16Aus(f32, rate);
+  /* Weckwort-Dienst bekommt immer etwas, wenn das Mikro an ist */
+  wakeSenden(pcm);
+  if (!state.hoert) return;
+  const ws = state.ws;
+  if (!ws || ws.readyState !== 1 || !state.sessionBereit) {
+    /* Vor dem "bereit" puffern (max. 5 s), danach flushen */
+    const vor = state.mikro.vorlauf;
+    vor.push(pcm);
+    let summe = 0;
+    for (const p of vor) summe += p.length;
+    while (summe > 80000 && vor.length > 1) summe -= vor.shift().length;
+    return;
+  }
+  pcmSenden(ws, pcm);
+}
+
+function pcmSenden(ws, pcm) {
+  try { ws.send(pcm.buffer); } catch (e) { /* Verbindung weg */ }
+}
+
+function vorlaufFlushen() {
+  const ws = state.ws;
+  if (!ws || ws.readyState !== 1) { state.mikro.vorlauf = []; return; }
+  for (const p of state.mikro.vorlauf) pcmSenden(ws, p);
+  state.mikro.vorlauf = [];
+}
+
+/* ---------------- Weckwort-Dienst ---------------- */
+
+function wakeVerbinden() {
+  if (!state.mikro.aktiv || document.hidden) return;
+  if (state.wake.ws &&
+      (state.wake.ws.readyState === 0 || state.wake.ws.readyState === 1)) return;
+  let ws;
+  try {
+    ws = new WebSocket("wss://" + location.host + "/gemma-live/wake?token=" +
+      encodeURIComponent(CFG.token) + "&device=show15");
+  } catch (e) {
+    wakeErneut();
+    return;
+  }
+  ws.binaryType = "arraybuffer";
+  state.wake.ws = ws;
+  ws.onopen = () => {
+    state.wake.offen = true;
+    state.wake.versuch = 0;
+    punktSetzen("gruen", "lauscht");
+  };
+  ws.onmessage = (ev) => {
+    let d = null;
+    try { d = JSON.parse(ev.data); } catch (e) { return; }
+    if (d.typ === "weck") {
+      if (!state.hoert && !document.hidden) redeStarten();
+    }
+  };
+  ws.onclose = () => {
+    state.wake.offen = false;
+    state.wake.ws = null;
+    if (state.mikro.aktiv) punktSetzen("", "");
+    wakeErneut();
+  };
+  ws.onerror = () => {
+    try { ws.close(); } catch (e) { /* egal */ }
+  };
+}
+
+function wakeErneut() {
+  if (state.wake.timer) clearTimeout(state.wake.timer);
+  state.wake.timer = setTimeout(() => {
+    state.wake.timer = null;
+    if (state.mikro.aktiv && !document.hidden) wakeVerbinden();
+  }, 5000);
+}
+
+function wakeSenden(pcm) {
+  const ws = state.wake.ws;
+  if (!state.wake.offen || !ws || ws.readyState !== 1) return;
+  if (state.wake.puffer === undefined) state.wake.puffer = [];
+  state.wake.puffer.push(pcm);
+  let summe = 0;
+  for (const p of state.wake.puffer) summe += p.length;
+  /* ~100-ms-Blöcke (1600 Samples) an den Server */
+  while (summe >= 1600) {
+    const teile = [];
+    let braucht = 1600;
+    while (braucht > 0 && state.wake.puffer.length) {
+      const kopf = state.wake.puffer[0];
+      if (kopf.length <= braucht) {
+        teile.push(kopf);
+        braucht -= kopf.length;
+        state.wake.puffer.shift();
+      } else {
+        teile.push(kopf.subarray(0, braucht));
+        state.wake.puffer[0] = kopf.subarray(braucht);
+        braucht = 0;
+      }
+    }
+    const gesamt = new Int16Array(1600);
+    let pos = 0;
+    for (const t of teile) { gesamt.set(t, pos); pos += t.length; }
+    try { ws.send(gesamt.buffer); } catch (e) { break; }
+    summe -= 1600;
+  }
+}
+
+/* ---------------- Gespräch: WebSocket ---------------- */
+
+function sendeJson(obj) {
+  const ws = state.ws;
+  if (ws && ws.readyState === 1) {
+    try { ws.send(JSON.stringify(obj)); } catch (e) { /* weg */ }
+  }
+}
+
+function gespraechSchliessen() {
+  const ws = state.ws;
+  state.ws = null;
+  state.wsOnline = false;
+  state.sessionBereit = false;
+  state.willReden = false;
+  if (ws) { try { ws.close(1000, "fertig"); } catch (e) { /* weg */ } }
+  wiedergabeStoppen();
+  if (!state.mikro.aktiv) punktSetzen("", "");
+  else punktSetzen("gruen", "lauscht");
+}
+
+function gespraechVerbinden() {
+  if (state.ws) return;
+  let ws;
+  try {
+    ws = new WebSocket("wss://" + location.host + "/gemma-live/ws?token=" +
+      encodeURIComponent(CFG.token) + "&device=show15&version=" +
+      encodeURIComponent(CFG.version));
+  } catch (e) {
+    $("orb-status").textContent = "Verbindung fehlgeschlagen";
+    return;
+  }
+  ws.binaryType = "arraybuffer";
+  state.ws = ws;
+  ws.onopen = () => {
+    state.wsOnline = true;
+  };
+  ws.onmessage = (ev) => {
+    if (ev.data instanceof ArrayBuffer) {
+      audioAbspielen(new Int16Array(ev.data));
+      return;
+    }
+    let d;
+    try { d = JSON.parse(ev.data); } catch (e) { return; }
+    switch (d.typ) {
+      case "bereit":
+        state.sessionBereit = true;
+        if (state.willReden) {
+          state.hoert = true;
+          vorlaufFlushen();
+          orbSetzen("hoert", "Ich höre zu … nochmal tippen beendet");
+        }
+        break;
+      case "du":
+        if (d.text) chatAnhaengen("Kay", d.text);
+        state.denkEnde = 0;
+        break;
+      case "gemma":
+        if (d.text) chatAnhaengen("Gemma", d.text);
+        break;
+      case "denkt":
+      case "werkzeug":
+        state.denkEnde = Date.now() + 20000;
+        break;
+      case "werkzeug_fertig":
+        state.denkEnde = 0;
+        break;
+      case "unterbrochen":
+        wiedergabeStoppen();
+        break;
+      case "zug_ende":
+        state.denkEnde = 0;
+        break;
+      case "geraet":
+        /* Dieses Display steuert keine Geräte - ehrlich antworten. */
+        sendeJson({ typ: "werkzeug_ergebnis", id: String(d.id || ""),
+                    ergebnis: "Hier nicht möglich: dieses Gerät hat keine Geräte-Steuerung." });
+        break;
+      case "fehler":
+        $("orb-status").textContent = "kurze Pause, gleich wieder";
+        break;
+      case "ende":
+        gespraechSchliessen();
+        break;
+    }
+  };
+  ws.onclose = () => {
+    if (state.ws === ws) {
+      state.ws = null;
+      state.wsOnline = false;
+      state.sessionBereit = false;
+      wiedergabeStoppen();
+      if (state.hoert) state.hoert = false;
+      if (!state.mikro.aktiv) punktSetzen("", "");
+    }
+  };
+  ws.onerror = () => {
+    try { ws.close(); } catch (e) { /* weg */ }
+  };
+}
+
+/* Orb-Tipp / Weckwort / Text: der gemeinsame Weg ins Gespräch */
+
+function redeStarten() {
+  wiedergabeStoppen();
+  state.willReden = true;
+  state.hoert = false;
+  orbSetzen("aktiv", state.mikro.aktiv ? "verbinde …" : "Mikrofon an …");
+  gespraechVerbinden();
+  mikroAktivieren().then((ok) => {
+    if (!ok) { state.willReden = false; return; }
+    if (state.sessionBereit && state.willReden) {
+      state.hoert = true;
+      vorlaufFlushen();
+      orbSetzen("hoert", "Ich höre zu … nochmal tippen beendet");
+    }
+  });
+}
+
+function redeStoppen() {
+  state.hoert = false;
+  state.willReden = false;
+  state.mikro.vorlauf = [];
+  state.denkEnde = Date.now() + 25000;
+  orbSetzen("aktiv", "denkt nach …");
+}
+
+function orbTap() {
+  playbackCtx();          /* Tonfreigabe durch Nutzer-Tipp */
+  if (state.hoert) { redeStoppen(); return; }
+  redeStarten();
+}
+
+/* Text statt Sprache (Falls Weg + Prüfung) */
+
+function textSenden(text) {
+  text = String(text || "").trim();
+  if (!text) return;
+  chatAnhaengen("Kay", text);
+  state.willReden = false;
+  gespraechVerbinden();
+  const ws = state.ws;
+  if (state.sessionBereit && ws) {
+    sendeJson({ typ: "text", text });
+    return;
+  }
+  const warte = setInterval(() => {
+    if (state.sessionBereit && state.ws) {
+      clearInterval(warte);
+      sendeJson({ typ: "text", text });
+    } else if (!state.ws) {
+      clearInterval(warte);
+    }
+  }, 200);
+  setTimeout(() => clearInterval(warte), 15000);
+}
+
+/* ---------------- Kacheln: Status holen ---------------- */
+
+async function statusHolen() {
+  if (!CFG.token) return;
+  const p = new URLSearchParams();
+  p.set("token", CFG.token);
+  p.set("t", Date.now());
+  let d;
+  try {
+    const r = await fetch("/gemma-live/status?" + p.toString(),
+      { cache: "no-store" });
+    if (!r.ok) return;
+    d = await r.json();
+  } catch (e) {
+    return;
+  }
+  kachelMusik(d.musik);
+  kachelVital(d.vital);
+  kachelHeizung(d.heizung);
+  kachelTermine(d.termine);
+}
+
+function kachelMusik(m) {
+  const titel = $("musik-titel");
+  const kuenstler = $("musik-kuenstler");
+  const cover = $("musik-cover");
+  state.kachelDaten["k-musik"] = m || null;
+  if (!m || (!m.verbunden && !m.titel)) {
+    titel.textContent = "nicht verbunden";
+    kuenstler.textContent = "Musik läuft woanders oder ist aus";
+    if (!cover.hidden) cover.hidden = true;
+    $("m-play").innerHTML = "&#9654;";
+    return;
+  }
+  titel.textContent = m.titel || "—";
+  kuenstler.textContent = [m.kuenstler, m.geraet].filter(Boolean).join(" · ") || "—";
+  if (m.cover) {
+    if (cover.src !== m.cover) cover.src = m.cover;
+    cover.hidden = false;
+  } else {
+    cover.hidden = true;
+  }
+  $("m-play").innerHTML = m.laeuft ? "&#9208;" : "&#9654;";
+}
+
+function kachelVital(v) {
+  state.kachelDaten["k-vital"] = v || null;
+  const zahl = (x, nach) => (typeof x === "number" && isFinite(x))
+    ? Math.round(x) + (nach || "") : "—";
+  $("v-puls").textContent = zahl(v && v.puls);
+  $("v-schritte").textContent = zahl(v && v.schritte);
+  $("v-schlaf").textContent = zahl(v && v.schlaf);
+  $("v-ready").textContent = zahl(v && v.readiness);
+  $("v-alter").textContent = (v && v.datum && v.datum !== heuteStr())
+    ? "Stand: " + v.datum : (v && v.puls != null ? "von heute" : "noch keine Werte von der Uhr");
+}
+
+function heuteStr() {
+  const d = new Date();
+  const mon = String(d.getMonth() + 1).padStart(2, "0");
+  const tag = String(d.getDate()).padStart(2, "0");
+  return d.getFullYear() + "-" + mon + "-" + tag;
+}
+
+function kachelHeizung(zonen) {
+  const box = $("heizung-liste");
+  box.innerHTML = "";
+  state.kachelDaten["k-heizung"] = zonen || null;
+  if (!zonen || !zonen.length) {
+    const leer = document.createElement("div");
+    leer.className = "kachel-zusatz";
+    leer.textContent = "keine Werte";
+    box.append(leer);
+    return;
+  }
+  for (const z of zonen) {
+    const zeile = document.createElement("div");
+    zeile.className = "heizung-zeile";
+    const name = document.createElement("span");
+    name.className = "heizung-name";
+    name.textContent = z.name || "—";
+    const wert = document.createElement("span");
+    wert.className = "heizung-wert";
+    const ist = (typeof z.ist === "number") ? z.ist.toFixed(1).replace(".", ",") + "°" : "—";
+    const soll = (typeof z.soll === "number") ? z.soll.toFixed(1).replace(".", ",") + "°" : "";
+    wert.textContent = soll ? `${ist} · soll ${soll}` : ist;
+    zeile.append(name, wert);
+    box.append(zeile);
+  }
+}
+
+const TAGE_KURZ = ["So", "Mo", "Di", "Mi", "Do", "Fr", "Sa"];
+
+function kachelTermine(termine) {
+  const box = $("termin-liste");
+  box.innerHTML = "";
+  state.kachelDaten["k-termine"] = termine || null;
+  if (!termine || !termine.length) {
+    const leer = document.createElement("div");
+    leer.className = "kachel-zusatz";
+    leer.textContent = "nichts geplant";
+    box.append(leer);
+    return;
+  }
+  for (const t of termine.slice(0, 4)) {
+    const zeile = document.createElement("div");
+    zeile.className = "termin-zeile";
+    const wann = document.createElement("span");
+    wann.className = "termin-wann";
+    wann.textContent = terminWann(t);
+    const was = document.createElement("span");
+    was.className = "termin-was";
+    was.textContent = t.titel || "—";
+    zeile.append(wann, was);
+    box.append(zeile);
+  }
+}
+
+function terminWann(t) {
+  if (!t.tag) return "—";
+  const teile = String(t.tag).split("-");
+  const d = new Date(Number(teile[0]), Number(teile[1]) - 1, Number(teile[2]));
+  const heute = heuteStr();
+  const morgen = new Date();
+  morgen.setDate(morgen.getDate() + 1);
+  let name;
+  if (String(t.tag) === heute) name = "heute";
+  else if (String(t.tag) === morgenStr()) name = "morgen";
+  else name = TAGE_KURZ[d.getDay()] + " " + d.getDate() + "." + (d.getMonth() + 1) + ".";
+  if (t.ganztaegig) return name;
+  return name + (t.zeit ? ", " + t.zeit : "");
+}
+
+function morgenStr() {
+  const d = new Date();
+  d.setDate(d.getDate() + 1);
+  const mon = String(d.getMonth() + 1).padStart(2, "0");
+  const tag = String(d.getDate()).padStart(2, "0");
+  return d.getFullYear() + "-" + mon + "-" + tag;
+}
+
+async function musikAktion(aktion) {
+  if (!CFG.token) return;
+  const p = new URLSearchParams();
+  p.set("token", CFG.token);
+  p.set("aktion", aktion);
+  p.set("t", Date.now());
+  try {
+    const r = await fetch("/gemma-live/status?" + p.toString(),
+      { cache: "no-store" });
+    if (r.ok) {
+      const d = await r.json();
+      if (d && d.musik) kachelMusik(d.musik);
+      return;
+    }
+  } catch (e) { /* Kachel bleibt wie sie ist */ }
+  statusHolen();
+}
+
+/* ---------------- Verlauf (letzte Gespräche aller Geräte) ---------------- */
+
+async function verlaufHolen(dev) {
+  const p = new URLSearchParams();
+  p.set("token", CFG.token);
+  p.set("t", Date.now());
+  const r = await fetch("/gemma-live/verlauf/" + encodeURIComponent(dev) +
+    ".json?" + p.toString(), { cache: "no-store" });
+  if (!r.ok) return null;
+  const d = await r.json();
+  const msgs = (d.messages || []).filter((m) => m && m.content);
+  return { ts: d.ts || 0, msgs: msgs.slice(-8) };
+}
+
+async function verlaufPoll() {
+  if (!CFG.token || !CFG.geraete.length || state.chat.length) return;
+  const ergebnisse = await Promise.all(
+    CFG.geraete.map((g) => verlaufHolen(g).catch(() => null)));
+  const gueltige = ergebnisse.filter((e) => e && e.msgs.length);
+  if (!gueltige.length) return;
+  gueltige.sort((a, b) => (b.ts || 0) - (a.ts || 0));
+  state.verlaufMsgs = gueltige[0].msgs;
+  chatAusVerlauf();
 }
 
 /* ---------------- Detail-Overlay ---------------- */
@@ -114,67 +699,60 @@ function overlayOeffnen(id) {
   inhalt.innerHTML = "";
   let meta = "";
 
-  if (id === "k-gespraech" && state.gespraechMsgs.length) {
-    for (const m of state.gespraechMsgs) {
+  if (id === "k-gespraech") {
+    const msgs = state.chat.length
+      ? state.chat.map((m) => ({ wer: m.wer, text: m.text }))
+      : state.verlaufMsgs.map((m) => ({
+          wer: m.role === "user" ? "Kay" : "Gemma", text: m.content }));
+    if (!msgs.length) {
+      const leer = document.createElement("div");
+      leer.className = "ov-leer";
+      leer.textContent = "Noch kein Gespräch.";
+      inhalt.append(leer);
+    }
+    for (const m of msgs) {
       const zeile = document.createElement("div");
-      zeile.className = "ov-msg" + (m.role === "user" ? " ov-user" : "");
+      zeile.className = "ov-msg" + (m.wer === "Kay" ? " ov-user" : "");
       const wer = document.createElement("div");
       wer.className = "ov-msg-wer";
-      wer.textContent = m.role === "user" ? "Kay" : "Gemma";
+      wer.textContent = m.wer;
       const txt = document.createElement("div");
       txt.className = "ov-msg-text";
-      txt.textContent = m.content;
+      txt.textContent = m.text;
       zeile.append(wer, txt);
       inhalt.append(zeile);
     }
-    meta = "Gerät " + state.gespraechDev + " · neueste unten";
-  } else if (id === "k-antwort") {
-    const txt = document.createElement("div");
-    txt.className = "ov-gross";
-    txt.textContent = state.antwortText || "Noch keine Antwort im Verlauf.";
-    inhalt.append(txt);
-    meta = state.antwortQuelle
-      ? state.antwortQuelle + (state.antwortZeit ? " · " + relZeit(state.antwortZeit) : "")
-      : "";
+  } else if (id === "k-musik" && daten) {
+    zeileInOverlay(inhalt, "Titel", daten.titel);
+    zeileInOverlay(inhalt, "Von", daten.kuenstler);
+    zeileInOverlay(inhalt, "Läuft auf", daten.geraet);
+    if (!daten.verbunden && !daten.titel) {
+      zeileInOverlay(inhalt, "Hinweis", "Gerade läuft keine Musik.");
+    }
+  } else if (id === "k-vital" && daten) {
+    zeileInOverlay(inhalt, "Puls", typeof daten.puls === "number" ? Math.round(daten.puls) : null);
+    zeileInOverlay(inhalt, "Schritte", typeof daten.schritte === "number" ? Math.round(daten.schritte) : null);
+    zeileInOverlay(inhalt, "Schlaf-Score", typeof daten.schlaf === "number" ? Math.round(daten.schlaf) : null);
+    zeileInOverlay(inhalt, "Fit-Score", typeof daten.readiness === "number" ? Math.round(daten.readiness) : null);
+    if (daten.datum) zeileInOverlay(inhalt, "Tag", daten.datum);
+    if (!daten.puls && !daten.schritte && !daten.schlaf) {
+      zeileInOverlay(inhalt, "Hinweis", "Noch keine Werte von der Uhr.");
+    }
+  } else if (id === "k-heizung" && Array.isArray(daten)) {
+    for (const z of daten) {
+      const ist = (typeof z.ist === "number") ? z.ist.toFixed(1).replace(".", ",") + "°" : "—";
+      const soll = (typeof z.soll === "number") ? z.soll.toFixed(1).replace(".", ",") + "°" : "—";
+      zeileInOverlay(inhalt, z.name || "—", `${ist} ist · ${soll} soll`);
+    }
+  } else if (id === "k-termine" && Array.isArray(daten)) {
+    for (const t of daten) {
+      zeileInOverlay(inhalt, terminWann(t), t.titel || "—");
+    }
   } else {
-    const wert = document.createElement("div");
-    wert.className = "ov-wert";
-    wert.textContent = daten ? daten.wert : "—";
-    inhalt.append(wert);
-    if (daten && daten.zusatz) {
-      const zusatz = document.createElement("div");
-      zusatz.className = "ov-zusatz";
-      zusatz.textContent = daten.zusatz;
-      inhalt.append(zusatz);
-    }
-    const extra = daten && daten.extra;
-    if (extra && Object.keys(extra).length) {
-      const liste = document.createElement("div");
-      liste.className = "ov-roh";
-      for (const [schluessel, wert2] of Object.entries(extra)) {
-        const zeile = document.createElement("div");
-        zeile.className = "ov-roh-zeile";
-        const kEl = document.createElement("span");
-        kEl.className = "ov-roh-key";
-        kEl.textContent = schluessel;
-        const vEl = document.createElement("span");
-        vEl.className = "ov-roh-wert";
-        vEl.textContent = (wert2 && typeof wert2 === "object")
-          ? JSON.stringify(wert2) : String(wert2);
-        zeile.append(kEl, vEl);
-        liste.append(zeile);
-      }
-      inhalt.append(liste);
-    }
-    if ((!daten) || (!daten.wert && !daten.zusatz)) {
-      const leer = document.createElement("div");
-      leer.className = "ov-leer";
-      leer.textContent = "Noch keine Daten.";
-      inhalt.append(leer);
-    }
-    if (daten && daten.zeit) {
-      meta = "Stand: " + new Date(daten.zeit).toLocaleTimeString("de-DE");
-    }
+    const leer = document.createElement("div");
+    leer.className = "ov-leer";
+    leer.textContent = "Gerade keine Daten.";
+    inhalt.append(leer);
   }
 
   $("overlay-meta").textContent = meta;
@@ -184,6 +762,19 @@ function overlayOeffnen(id) {
   $("overlay-x").focus();
 }
 
+function zeileInOverlay(inhalt, schluessel, wert) {
+  const zeile = document.createElement("div");
+  zeile.className = "ov-roh-zeile";
+  const k = document.createElement("span");
+  k.className = "ov-roh-key";
+  k.textContent = schluessel;
+  const v = document.createElement("span");
+  v.className = "ov-roh-wert";
+  v.textContent = (wert === null || wert === undefined || wert === "") ? "—" : String(wert);
+  zeile.append(k, v);
+  inhalt.append(zeile);
+}
+
 function overlaySchliessen() {
   const ov = $("overlay");
   ov.classList.remove("offen");
@@ -191,18 +782,13 @@ function overlaySchliessen() {
 }
 
 function kachelnKlickbarMachen() {
-  for (const k of document.querySelectorAll(".kachel, .antwort-kachel")) {
+  for (const k of document.querySelectorAll(".kachel, .gespraech-kachel")) {
     if (!k.id) continue;
     k.classList.add("klickbar");
     k.setAttribute("role", "button");
     k.setAttribute("tabindex", "0");
-    const hinweis = document.createElement("span");
-    hinweis.className = "kachel-hinweis";
-    hinweis.setAttribute("aria-hidden", "true");
-    hinweis.textContent = "Details ›";
-    k.append(hinweis);
     k.addEventListener("click", (ev) => {
-      ev.stopPropagation();
+      if (ev.target.closest("button")) return;
       overlayOeffnen(k.id);
     });
     k.addEventListener("keydown", (ev) => {
@@ -225,212 +811,11 @@ function kachelnKlickbarMachen() {
   });
 }
 
-/* ---------------- WebSocket zur Bruecke ---------------- */
-
-function wsUrl() {
-  const p = new URLSearchParams();
-  p.set("token", CFG.token);
-  p.set("device", "show15");
-  p.set("version", CFG.version);
-  return "wss://" + location.host + "/gemma-live/ws?" + p.toString();
-}
-
-function wsVerbinden() {
-  if (state.ws) return;
-  if (document.hidden) {
-    wsNaechstenVersuchPlanen();
-    return;
-  }
-  kachel("k-session", "verbindet", "Anfrage läuft", "warn");
-  let ws;
-  try {
-    ws = new WebSocket(wsUrl());
-  } catch (e) {
-    wsNachEnde();
-    return;
-  }
-  state.ws = ws;
-
-  ws.onopen = () => {
-    state.wsOnline = true;
-    state.sessionBereit = false;
-    badge("f-ws", "WS online", "badge-ok");
-    kachel("k-bruecke", "online", "Brücke antwortet", "ok",
-      { url: "wss://" + location.host + "/gemma-live/ws", gerät: "show15" });
-    orbSetzen("idle", "bereit");
-    state.wsZyklusTimer = setTimeout(() => {
-      try { ws.close(1000, "zyklus"); } catch (e) {}
-    }, CFG.wsZyklusSek * 1000);
-  };
-
-  ws.onmessage = (ev) => {
-    let d;
-    try { d = JSON.parse(ev.data); } catch (e) { return; }
-    switch (d.typ) {
-      case "bereit":
-        state.sessionBereit = true;
-        state.backoffSek = CFG.wsBackoffStartSek;
-        kachel("k-session", "bereit", "Gemini verbunden", "ok");
-        kachel("k-bruecke", "online", "Brücke antwortet", "ok",
-          { url: "wss://" + location.host + "/gemma-live/ws", gerät: "show15" });
-        break;
-      case "gemma":
-        if (d.text) antwortAnzeigen(d.text, "live", null);
-        aktivBlinken(12);
-        break;
-      case "du":
-        aktivBlinken(12);
-        break;
-      case "denkt":
-      case "werkzeug":
-        aktivBlinken(15);
-        break;
-      case "zug_ende":
-        aktivBlinken(8);
-        break;
-      case "fehler":
-        kachel("k-session", "Fehler", String(d.text || "").slice(0, 60), "fehler");
-        break;
-      case "ende":
-        try { ws.close(1000, "ende"); } catch (e) {}
-        break;
-    }
-  };
-
-  ws.onclose = () => {
-    if (state.wsZyklusTimer) { clearTimeout(state.wsZyklusTimer); state.wsZyklusTimer = null; }
-    state.ws = null;
-    wsNachEnde();
-  };
-
-  ws.onerror = () => {
-    try { ws.close(); } catch (e) {}
-  };
-}
-
-function wsNachEnde() {
-  state.wsOnline = false;
-  state.sessionBereit = false;
-  badge("f-ws", "WS aus", "badge-aus");
-  kachel("k-bruecke", "offline", "Brücke nicht verbunden", "fehler",
-    { url: "wss://" + location.host + "/gemma-live/ws", gerät: "show15" });
-  kachel("k-session", "inaktiv", "keine Session", "");
-  orbSetzen(Date.now() < state.aktivBis ? "aktiv" : "aus",
-    Date.now() < state.aktivBis ? "aktiv" : "offline");
-  wsNaechstenVersuchPlanen();
-}
-
-function wsNaechstenVersuchPlanen() {
-  if (state.wsNaechsterVersuch && state.wsNaechsterVersuch > Date.now()) return;
-  const jitter = Math.round(Math.random() * 8000);
-  const pause = state.backoffSek * 1000 + jitter;
-  state.wsNaechsterVersuch = Date.now() + pause;
-  kachel("k-bruecke", "offline", "neuer Versuch in " + Math.round(pause / 1000) + " s", "fehler",
-    { backoffSek: state.backoffSek, gerät: "show15" });
-  setTimeout(() => {
-    state.backoffSek = Math.min(
-      Math.round(state.backoffSek * 1.6), CFG.wsBackoffMaxSek);
-    state.wsNaechsterVersuch = 0;
-    wsVerbinden();
-  }, pause);
-}
-
-/* ---------------- Verlauf: letzte echte Antwort ---------------- */
-
-async function verlaufHolen(dev) {
-  const p = new URLSearchParams();
-  p.set("token", CFG.token);
-  p.set("t", Date.now());
-  const r = await fetch("/gemma-live/verlauf/" + encodeURIComponent(dev) +
-    ".json?" + p.toString(), { cache: "no-store" });
-  if (!r.ok) return null;
-  const d = await r.json();
-  const msgs = (d.messages || []).filter((m) => m && m.content);
-  let letzte = null;
-  for (let i = msgs.length - 1; i >= 0; i--) {
-    if (msgs[i].role === "assistant") { letzte = msgs[i]; break; }
-  }
-  return {
-    ts: d.ts || 0,
-    text: letzte ? letzte.content : "",
-    msgs: msgs.length,
-    letzte10: msgs.slice(-10).map((m) => ({ role: m.role, content: m.content })),
-    dev: dev
-  };
-}
-
-async function verlaufPoll() {
-  if (!CFG.token || !CFG.geraete.length) {
-    kachel("k-gespraech", "—", "kein Token konfiguriert", "warn");
-    return;
-  }
-  const ergebnisse = await Promise.all(
-    CFG.geraete.map((g) => verlaufHolen(g).catch(() => null)));
-  const gueltige = ergebnisse.filter((e) => e && e.text);
-  if (!gueltige.length) return;
-  gueltige.sort((a, b) => (b.ts || 0) - (a.ts || 0));
-  const frisch = gueltige[0];
-  state.geraetName = frisch.dev;
-  state.gespraechZeit = frisch.ts || null;
-  state.gespraechMsgs = frisch.letzte10 || [];
-  state.gespraechDev = frisch.dev;
-  const lebt = state.antwortQuelle === "live" &&
-    Date.now() / 1000 - (state.antwortZeit || 0) < 600;
-  if (!lebt) antwortAnzeigen(frisch.text, "verlauf", frisch.ts || null);
-  kachel("k-gespraech", relZeit(frisch.ts || null) || "unbekannt",
-    frisch.msgs + " Nachrichten im Verlauf", "ok",
-    { gerät: frisch.dev, nachrichten: frisch.msgs, ts: frisch.ts || 0 });
-  kachel("k-geraet", String(frisch.dev).slice(0, 12),
-    gueltige.length + " Geräte beobachtet", "",
-    { beobachtet: CFG.geraete, verlaufTs: frisch.ts || 0 });
-}
-
-/* ---------------- Verlauf/Konfig der Brücke in Kacheln ---------------- */
-
-async function brueckeConfigHolen() {
-  if (!CFG.token) return;
-  const p = new URLSearchParams();
-  p.set("token", CFG.token);
-  try {
-    const r = await fetch("/gemma-live/config?" + p.toString(),
-      { cache: "no-store" });
-    if (!r.ok) return;
-    const c = await r.json();
-    const roh = {};
-    for (const [schluessel, wert] of Object.entries(c)) {
-      if (wert === null || ["string", "number", "boolean"].includes(typeof wert)) {
-        roh[schluessel] = wert;
-      }
-    }
-    if (c.modell) kachel("k-modell", c.modell, "aus der Brücke-Config", "", roh);
-    if (c.stimme) kachel("k-stimme", c.stimme, "aus der Brücke-Config", "", roh);
-  } catch (e) { /* Kachel bleibt Platzhalter */ }
-}
-
 /* ---------------- Wake Lock mit Video-Fallback ---------------- */
-
-function lockBadge() {
-  const txt = state.lockTyp === "wakelock" ? "Lock: WakeLock"
-    : state.lockTyp === "video" ? "Lock: Video"
-    : "Lock: aus";
-  badge("f-lock", txt, state.lockTyp ? "badge-ok" : "badge-warn");
-}
-
-function kioskKachel() {
-  const voll = !!document.fullscreenElement;
-  const lock = state.lockTyp === "wakelock" ? "WakeLock aktiv"
-    : state.lockTyp === "video" ? "Video hält wach"
-    : "kein Wake Lock";
-  kachel("k-kiosk", voll ? "Vollbild" : "Fenster", lock,
-    state.lockTyp ? "ok" : "warn",
-    { lockTyp: state.lockTyp || "keiner", vollbild: voll ? "ja" : "nein" });
-  badge("f-voll", voll ? "Vollbild" : "kein Vollbild",
-    voll ? "badge-ok" : "badge-aus");
-}
 
 async function lockStarten() {
   if (document.hidden) return;
-  if (state.lockTyp) { lockBadge(); kioskKachel(); return; }
+  if (state.lockTyp) return;
   if (navigator.wakeLock && navigator.wakeLock.request) {
     try {
       const sentinel = await navigator.wakeLock.request("screen");
@@ -440,19 +825,11 @@ async function lockStarten() {
         if (state.lockTyp === "wakelock") {
           state.lockTyp = null;
           state.lockSentinel = null;
-          lockBadge();
         }
       });
-      lockBadge();
-      kioskKachel();
       return;
     } catch (e) { /* fällt zum Video durch */ }
   }
-  videoHalterStarten();
-}
-
-function videoHalterStarten() {
-  if (state.video) { state.lockTyp = "video"; lockBadge(); kioskKachel(); return; }
   try {
     const canvas = document.createElement("canvas");
     canvas.width = 2; canvas.height = 2;
@@ -467,33 +844,33 @@ function videoHalterStarten() {
     const zeichnen = () => {
       ctx.fillStyle = "#000";
       ctx.fillRect(0, 0, 2, 2);
-      if (video.requestVideoFrameCallback) {
-        video.requestVideoFrameCallback(zeichnen);
-      } else {
-        requestAnimationFrame(zeichnen);
-      }
+      if (video.requestVideoFrameCallback) video.requestVideoFrameCallback(zeichnen);
+      else requestAnimationFrame(zeichnen);
     };
     zeichnen();
     video.srcObject = stream;
     const play = video.play();
-    if (play && play.catch) {
-      play.catch(() => { /* erneut beim nächsten Nutzer-Tipp */ });
-    }
+    if (play && play.catch) play.catch(() => {});
     state.video = video;
     state.lockTyp = "video";
   } catch (e) {
     state.lockTyp = null;
   }
-  lockBadge();
-  kioskKachel();
 }
 
 document.addEventListener("visibilitychange", () => {
   if (!document.hidden) {
     state.lockTyp = null;
     state.lockSentinel = null;
-    if (state.video) { state.video.pause(); }
+    if (state.video) state.video.pause();
     lockStarten();
+    wakeVerbinden();
+    statusHolen();
+  } else {
+    /* Tab unsichtbar: Mikrofon-Stream für den Weckwort-Dienst pausieren */
+    if (state.wake.offen && state.wake.ws) {
+      try { state.wake.ws.close(); } catch (e) { /* weg */ }
+    }
   }
 });
 
@@ -506,7 +883,7 @@ function vollbildAnfordern() {
     try {
       const r = fn.call(el);
       if (r && r.catch) r.catch(() => {});
-    } catch (e) {}
+    } catch (e) { /* Browser wehrt sich */ }
   }
 }
 
@@ -517,10 +894,6 @@ function startupPruefen() {
     localStorage.setItem("gemma_kiosk", "1");
   }
   $("startup").classList.toggle("sichtbar", !voll && !auto);
-  if (!voll && !localStorage.getItem("gemma_kiosk")) {
-    $("startup-hinweis").textContent =
-      "Erster Start: mit Kiosk starten merkt sich diese Seite den Modus.";
-  }
 }
 
 document.addEventListener("fullscreenchange", startupPruefen);
@@ -531,6 +904,7 @@ $("kiosk-btn").addEventListener("click", (ev) => {
   localStorage.setItem("gemma_kiosk", "1");
   vollbildAnfordern();
   lockStarten();
+  playbackCtx();
 });
 
 document.addEventListener("click", () => {
@@ -540,38 +914,84 @@ document.addEventListener("click", () => {
   }
 });
 
+/* ---------------- Tasten ---------------- */
+
+$("orb").addEventListener("click", (ev) => {
+  ev.stopPropagation();
+  orbTap();
+});
+$("m-play").addEventListener("click", (ev) => {
+  ev.stopPropagation();
+  musikAktion(state.kachelDaten["k-musik"] && state.kachelDaten["k-musik"].laeuft
+    ? "musik_pause" : "musik_weiter");
+});
+$("m-naechster").addEventListener("click", (ev) => {
+  ev.stopPropagation();
+  musikAktion("musik_naechster");
+});
+$("m-vorher").addEventListener("click", (ev) => {
+  ev.stopPropagation();
+  musikAktion("musik_vorher");
+});
+$("mikro-btn").addEventListener("click", async (ev) => {
+  ev.stopPropagation();
+  if (state.mikro.aktiv) {
+    /* Mikro wieder aus: Streams sauber schließen */
+    state.mikro.aktiv = false;
+    if (state.wake.ws) { try { state.wake.ws.close(); } catch (e) {} }
+    if (state.hoert) redeStoppen();
+    try { state.mikro.stream.getTracks().forEach((t) => t.stop()); } catch (e) {}
+    try { state.mikro.ctx.close(); } catch (e) {}
+    state.mikro = { stream: null, ctx: null, knoten: null, stumm: null,
+                    aktiv: false, vorlauf: [], rest: null };
+    $("mikro-btn").textContent = "Mikro aktivieren";
+    $("mikro-btn").classList.remove("an");
+    punktSetzen("", "");
+    $("orb-status").textContent = "Tippen und sprechen";
+    return;
+  }
+  const ok = await mikroAktivieren();
+  if (ok) {
+    $("mikro-btn").textContent = "Mikro an";
+    $("mikro-btn").classList.add("an");
+    punktSetzen("gruen", "lauscht");
+  }
+});
+$("tippen-form").addEventListener("submit", (ev) => {
+  ev.preventDefault();
+  const feld = $("tippen-eingabe");
+  const text = feld.value.trim();
+  if (!text) return;
+  feld.value = "";
+  $("tippen-overlay").classList.remove("offen");
+  $("tippen-overlay").setAttribute("aria-hidden", "true");
+  textSenden(text);
+});
+
 /* ---------------- Start ---------------- */
 
-function orbUhr() {
-  if (state.aktivBis && Date.now() < state.aktivBis) {
-    orbSetzen("aktiv", "arbeitet");
-  } else if (state.wsOnline) {
-    orbSetzen("idle", "bereit");
-  } else {
-    orbSetzen("aus", "offline");
-  }
-}
-
-setInterval(uhrTicken, 1000);
-setInterval(orbUhr, 1000);
-setInterval(() => {
-  verlaufPoll();
-  if (state.antwortQuelle === "verlauf") {
-    $("antwort-meta").textContent =
-      state.antwortQuelle + " · " + relZeit(state.antwortZeit);
-  }
-  kachel("k-aktiv",
-    Date.now() < state.aktivBis ? "arbeitet" : "ruht",
-    Date.now() < state.aktivBis ? "Werkzeug oder Antwort läuft" : "kein Vorgang",
-    Date.now() < state.aktivBis ? "warn" : "",
-    { aktivBis: state.aktivBis ? new Date(state.aktivBis).toLocaleTimeString("de-DE") : "—" });
-}, 10000);
-
 uhrTicken();
-orbUhr();
+orbTakt();
+setInterval(uhrTicken, 1000);
+setInterval(orbTakt, 1000);
+setInterval(wiedergabeTakt, 250);
+setInterval(statusHolen, Math.max(15, CFG.statusSek) * 1000);
+setInterval(verlaufPoll, 30000);
 startupPruefen();
 lockStarten();
 kachelnKlickbarMachen();
-wsVerbinden();
+statusHolen();
 verlaufPoll();
-brueckeConfigHolen();
+
+/* Prüfhaken (unsichtbar, für automatische Tests): */
+window.gemmaIntern = {
+  textSenden,
+  orbTap,
+  mikroAktivieren,
+  zustand: () => ({
+    ws: !!state.ws, online: state.wsOnline, bereit: state.sessionBereit,
+    hoert: state.hoert, mikro: state.mikro.aktiv,
+    wake: state.wake.offen, chat: state.chat.length,
+    kacheln: Object.keys(state.kachelDaten)
+  })
+};

@@ -1,5 +1,6 @@
-/* Gemma Display, dunkles Theme fuer Echo Show 15 (1920x1080) und kleiner.
-   Skalierung ueber rem: html font-size folgt der Viewport-Breite. */
+/* Gemma Station, dunkles Theme fuer Kays Display (1920x1080) und kleiner.
+   Skalierung ueber rem: html font-size folgt der Viewport-Breite.
+   Look wie die Station-App: dunkel, grosse Kacheln, Orb oben. */
 
 :root {
   --bg: #0a0e14;
@@ -26,7 +27,7 @@ body {
     var(--bg);
   color: var(--text);
   font-family: "Amazon Ember", "Helvetica Neue", Arial, sans-serif;
-  min-height: 100vh;
+  height: 100vh;
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -65,38 +66,41 @@ body {
 }
 .startup-hinweis { margin-top: 1.4rem !important; font-size: 1rem !important; }
 
-/* ---------- Kopf: Uhr + Orb ---------- */
+/* ---------- Kopf: Uhr + Orb + Verbindung ---------- */
 
 header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 1.6rem 3rem 0.6rem;
+  padding: 1.2rem 3rem 0.4rem;
   gap: 2rem;
 }
 
 .uhr {
-  font-size: 8.6rem;
+  font-size: 7.2rem;
   font-weight: 800;
   line-height: 1;
   letter-spacing: 0.02em;
   font-variant-numeric: tabular-nums;
 }
 .datum {
-  font-size: 2rem;
+  font-size: 1.8rem;
   color: var(--text-dunkel);
-  margin-top: 0.5rem;
+  margin-top: 0.4rem;
   text-transform: capitalize;
 }
 
-.orb-block { display: flex; flex-direction: column; align-items: center; gap: 0.8rem; }
-.orb-status { font-size: 1.2rem; color: var(--text-dunkel); }
+.orb-block { display: flex; flex-direction: column; align-items: center; gap: 0.7rem; }
+.orb-status { font-size: 1.35rem; color: var(--text-dunkel); }
 
 .orb {
-  width: 9.5rem;
+  width: 8.6rem;
   aspect-ratio: 1 / 1;
   border-radius: 50%;
   position: relative;
+  border: 0;
+  padding: 0;
+  cursor: pointer;
   background:
     radial-gradient(circle at 34% 28%, #d9cfff 0%, var(--akzent-hell) 22%, #7c6cf0 48%, #3a2d9c 78%, #1b1460 100%);
   box-shadow:
@@ -105,12 +109,27 @@ header {
     inset 0 0 2rem rgba(255,255,255,0.22);
   animation: orb-puls 4.5s ease-in-out infinite;
 }
+.orb-kern {
+  position: absolute; inset: 34%;
+  border-radius: 50%;
+  background: radial-gradient(circle at 40% 35%, #ffffff, rgba(255,255,255,0.12) 70%);
+  opacity: 0.75;
+}
 .orb-ring {
   position: absolute; inset: -0.7rem;
   border-radius: 50%;
   border: 0.18rem solid rgba(185,168,255,0.35);
   border-top-color: var(--cyan);
   animation: orb-dreh 9s linear infinite;
+}
+.orb.hoert {
+  animation: orb-puls 0.9s ease-in-out infinite;
+  background:
+    radial-gradient(circle at 34% 28%, #ffe1e6 0%, #ff9dac 22%, #ff5c74 48%, #8f1d33 78%, #4a0f1c 100%);
+  box-shadow:
+    0 0 7rem rgba(255,92,116,0.6),
+    0 0 2rem rgba(255,157,172,0.8),
+    inset 0 0 2.4rem rgba(255,255,255,0.35);
 }
 .orb.aktiv {
   animation: orb-puls 1.1s ease-in-out infinite;
@@ -119,256 +138,368 @@ header {
     0 0 2rem rgba(185,168,255,0.8),
     inset 0 0 2.4rem rgba(255,255,255,0.35);
 }
-.orb.aus {
-  animation: none;
-  filter: grayscale(0.85) brightness(0.5);
+.orb.spricht {
+  animation: orb-puls 1.6s ease-in-out infinite;
+  box-shadow:
+    0 0 7rem rgba(185,168,255,0.75),
+    0 0 2rem rgba(79,209,197,0.7),
+    inset 0 0 2.4rem rgba(255,255,255,0.35);
 }
+.orb.aus { animation: none; filter: grayscale(0.85) brightness(0.5); }
 @keyframes orb-puls {
   0%, 100% { transform: scale(1); }
   50% { transform: scale(1.07); }
 }
-@keyframes orb-dreh {
-  to { transform: rotate(360deg); }
-}
+@keyframes orb-dreh { to { transform: rotate(360deg); } }
 @media (prefers-reduced-motion: reduce) {
   .orb, .orb-ring { animation: none !important; }
 }
 
-/* ---------- Letzte Antwort ---------- */
+.verbindungs-block {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.9rem;
+}
+.mikro-btn {
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: var(--text-dunkel);
+  background: transparent;
+  border: 1px solid var(--karte-rand);
+  border-radius: 2rem;
+  padding: 0.55rem 1.4rem;
+  cursor: pointer;
+}
+.mikro-btn.an {
+  color: #062d1b;
+  background: var(--gruen);
+  border-color: var(--gruen);
+}
+.punkt-zeile { display: flex; align-items: center; gap: 0.6rem; }
+.punkt {
+  width: 0.9rem; height: 0.9rem;
+  border-radius: 50%;
+  background: #2c3a52;
+  display: inline-block;
+}
+.punkt.gruen {
+  background: var(--gruen);
+  box-shadow: 0 0 1rem rgba(61,220,132,0.7);
+}
+.punkt-text { font-size: 1.15rem; color: var(--text-dunkel); }
+
+/* ---------- Hauptbereich: Gespräch links, Kachelraster rechts ---------- */
 
 main {
   flex: 1;
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  grid-template-columns: 36% 1fr;
   gap: 1.4rem;
-  padding: 1.2rem 3rem 1rem;
+  padding: 0.8rem 3rem 0.6rem;
   min-height: 0;
 }
 
-.antwort-kachel {
+.gespraech-kachel, .kachel {
   background: var(--karte);
   border: 1px solid var(--karte-rand);
   border-radius: 1.4rem;
-  padding: 1.6rem 2.2rem;
-  min-height: 9.5rem;
-  max-height: 17rem;
+  padding: 1.4rem 1.7rem;
+  min-height: 0;
+  overflow: hidden;
+  position: relative;
+}
+.kachel-label {
+  font-size: 1.15rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--text-dunkel);
+  margin-bottom: 0.9rem;
+}
+
+/* Gespräch links, volle Hoehe */
+
+.gespraech-kachel { display: flex; flex-direction: column; }
+.chat {
+  flex: 1;
+  overflow-y: auto;
   display: flex;
   flex-direction: column;
-  box-shadow: 0 0.5rem 2rem rgba(0,0,0,0.35);
+  gap: 0.9rem;
+  padding-right: 0.5rem;
+  scrollbar-width: none;
 }
-.antwort-text {
-  font-size: 2.35rem;
+.chat::-webkit-scrollbar { display: none; }
+.chat-zeile {
+  font-size: 1.45rem;
   line-height: 1.35;
-  font-weight: 500;
-  overflow-y: auto;
-  margin-top: 0.7rem;
-  -webkit-user-select: text;
-  user-select: text;
-  cursor: auto;
+  padding: 0.7rem 1rem;
+  border-radius: 0.9rem;
+  background: rgba(124,108,240,0.10);
 }
-.antwort-meta { margin-top: auto; padding-top: 0.7rem; color: var(--text-dunkel); font-size: 1.15rem; }
+.chat-kay { background: rgba(79,209,197,0.10); }
+.chat-wer {
+  display: block;
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--text-dunkel);
+  margin-bottom: 0.15rem;
+}
+.chat-kay .chat-wer { color: var(--cyan); }
+.chat-gemma .chat-wer { color: var(--akzent-hell); }
 
-/* ---------- Kachelraster ---------- */
+/* Kachelraster rechts: 2 x 2 */
 
 .raster {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: 1fr 1fr;
+  grid-template-rows: 1fr 1fr;
   gap: 1.4rem;
-  flex: 1;
   min-height: 0;
 }
-@media (max-width: 1200px) { .raster { grid-template-columns: repeat(2, 1fr); } }
-@media (max-width: 700px)  { .raster { grid-template-columns: 1fr; } }
 
-.kachel {
-  background: var(--karte);
-  border: 1px solid var(--karte-rand);
-  border-radius: 1.4rem;
-  padding: 1.3rem 1.6rem;
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-  min-height: 0;
-  overflow: hidden;
-}
-.kachel-label {
-  font-size: 1.05rem;
-  text-transform: uppercase;
-  letter-spacing: 0.14em;
-  color: var(--text-dunkel);
-}
 .kachel-wert {
-  font-size: 2.5rem;
-  font-weight: 800;
-  line-height: 1.1;
-  word-break: break-word;
+  font-size: 2.1rem;
+  font-weight: 700;
+  line-height: 1.2;
 }
-.kachel-zusatz { font-size: 1.1rem; color: var(--text-dunkel); margin-top: auto; }
-
-.kachel.ok    { border-color: rgba(61,220,132,0.55); }
-.kachel.ok    .kachel-wert { color: var(--gruen); }
-.kachel.warn  { border-color: rgba(255,209,102,0.55); }
-.kachel.warn  .kachel-wert { color: var(--gelb); }
-.kachel.fehler{ border-color: rgba(255,92,116,0.55); }
-.kachel.fehler .kachel-wert { color: var(--rot); }
-
-/* ---------- Klickbare Kacheln ---------- */
-
-.kachel.klickbar,
-.antwort-kachel.klickbar {
-  cursor: pointer;
-  -webkit-tap-highlight-color: transparent;
-  transition: transform 0.08s ease, border-color 0.15s ease;
-}
-.kachel.klickbar:active,
-.antwort-kachel.klickbar:active { transform: scale(0.98); }
-.kachel.klickbar:focus-visible,
-.antwort-kachel.klickbar:focus-visible {
-  outline: 0.3rem solid var(--akzent);
-  outline-offset: 0.2rem;
+.kachel-zusatz {
+  font-size: 1.25rem;
+  color: var(--text-dunkel);
+  margin-top: 0.4rem;
 }
 .kachel-hinweis {
   position: absolute;
-  top: 1.1rem;
-  right: 1.3rem;
+  right: 1.1rem;
+  bottom: 0.9rem;
   font-size: 1rem;
-  color: var(--text-dunkel);
-  opacity: 0.65;
-  pointer-events: none;
+  color: #3a4a66;
 }
-.kachel, .antwort-kachel { position: relative; }
 
-/* ---------- Detail-Overlay ---------- */
+/* Musik */
 
-#overlay {
-  position: fixed; inset: 0; z-index: 80;
-  display: none;
+.musik-zeile {
+  display: flex;
+  align-items: center;
+  gap: 1.2rem;
+  min-height: 6.2rem;
+}
+.musik-cover {
+  width: 6.4rem;
+  height: 6.4rem;
+  border-radius: 0.8rem;
+  object-fit: cover;
+  background: #0d1420;
+  flex: none;
+}
+.musik-text { min-width: 0; }
+.musik-text .kachel-wert {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.musik-tasten {
+  display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(4, 7, 12, 0.93);
-  padding: 3.5rem;
+  gap: 1.4rem;
+  margin-top: 0.8rem;
 }
-#overlay.offen { display: flex; }
-
-#overlay-box {
-  position: relative;
-  background: var(--karte);
-  border: 1px solid var(--karte-rand);
-  border-radius: 1.6rem;
-  padding: 2.6rem 3.2rem 2rem;
-  width: min(92rem, 94vw);
-  max-height: 84vh;
-  display: flex;
-  flex-direction: column;
-  box-shadow: 0 0 9rem rgba(0,0,0,0.65);
-}
-
-#overlay-x {
-  position: absolute;
-  top: 1.4rem;
-  right: 1.4rem;
-  width: 5.4rem;
-  height: 5.4rem;
+.taste {
+  width: 4.6rem;
+  height: 4.6rem;
   border-radius: 50%;
-  font-size: 2.8rem;
-  line-height: 1;
+  border: 1px solid var(--karte-rand);
+  background: rgba(124,108,240,0.14);
   color: var(--text);
-  background: #1c2736;
-  border: 1px solid var(--karte-rand);
+  font-size: 1.9rem;
   cursor: pointer;
-  transition: transform 0.08s ease, background 0.15s ease;
+  line-height: 1;
 }
-#overlay-x:active { transform: scale(0.9); background: #26344a; }
-
-.ov-label {
-  font-size: 1.15rem;
-  text-transform: uppercase;
-  letter-spacing: 0.14em;
-  color: var(--text-dunkel);
-  margin-bottom: 1.4rem;
-  padding-right: 6rem;
-}
-
-.ov-inhalt {
-  flex: 1;
-  min-height: 0;
-  overflow-y: auto;
-  -webkit-user-select: text;
-  user-select: text;
-}
-
-.ov-meta { margin-top: 1.4rem; color: var(--text-dunkel); font-size: 1.15rem; min-height: 1.4rem; }
-
-.ov-wert {
-  font-size: 5.5rem;
-  font-weight: 800;
-  line-height: 1.05;
-  word-break: break-word;
-}
-.ov-zusatz { font-size: 2rem; color: var(--text-dunkel); margin-top: 1rem; }
-
-.ov-gross {
+.taste:active { background: rgba(124,108,240,0.35); }
+.taste-gross {
+  width: 6.2rem;
+  height: 6.2rem;
   font-size: 2.5rem;
-  line-height: 1.4;
-  font-weight: 500;
-  white-space: pre-wrap;
-  word-break: break-word;
+  background: linear-gradient(135deg, var(--akzent), #5a4ad0);
+  border: 0;
 }
 
-.ov-roh { margin-top: 2rem; display: flex; flex-direction: column; gap: 0.9rem; }
-.ov-roh-zeile {
-  display: flex;
-  gap: 1.6rem;
-  font-size: 1.8rem;
-  border-bottom: 1px solid rgba(34,48,71,0.6);
-  padding-bottom: 0.7rem;
-}
-.ov-roh-key { color: var(--text-dunkel); min-width: 18rem; flex-shrink: 0; }
-.ov-roh-wert { word-break: break-word; }
+/* Vitaldaten */
 
-.ov-msg { margin: 0 0 1.6rem; max-width: 86%; }
-.ov-msg-wer {
-  font-size: 1.05rem;
-  text-transform: uppercase;
-  letter-spacing: 0.12em;
-  color: var(--text-dunkel);
-  margin-bottom: 0.4rem;
+.vital-raster {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.7rem 1.2rem;
 }
-.ov-msg-text {
-  font-size: 2.2rem;
-  line-height: 1.4;
-  padding: 1.1rem 1.6rem;
-  border-radius: 1.2rem;
-  background: #182231;
-  border: 1px solid var(--karte-rand);
-  white-space: pre-wrap;
-  word-break: break-word;
-}
-.ov-user { margin-left: auto; }
-.ov-user .ov-msg-wer { text-align: right; }
-.ov-user .ov-msg-text {
-  background: rgba(124,108,240,0.16);
-  border-color: rgba(124,108,240,0.45);
-}
-.ov-leer { font-size: 2rem; color: var(--text-dunkel); }
-
-/* ---------- Fusszeile ---------- */
-
-footer {
-  display: flex;
-  align-items: center;
-  gap: 1rem;
-  padding: 0.8rem 3rem 1.2rem;
-  font-size: 1.05rem;
-  color: var(--text-dunkel);
-}
-.badges {
-  padding: 0.25rem 0.9rem;
-  border-radius: 2rem;
-  border: 1px solid var(--karte-rand);
+.vital-wert span {
+  display: block;
+  font-size: 2.6rem;
+  font-weight: 800;
+  line-height: 1.1;
   font-variant-numeric: tabular-nums;
 }
-.badge-ok   { color: var(--gruen); border-color: rgba(61,220,132,0.5); }
-.badge-warn { color: var(--gelb);  border-color: rgba(255,209,102,0.5); }
-.badge-aus  { color: var(--rot);   border-color: rgba(255,92,116,0.5); }
-.fuss-rechts { margin-left: auto; letter-spacing: 0.08em; }
+.vital-wert small {
+  font-size: 1.1rem;
+  color: var(--text-dunkel);
+}
+.vital-raster + .kachel-zusatz { font-size: 1.05rem; }
+
+/* Heizung */
+
+.heizung-liste, .termin-liste {
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+}
+.heizung-zeile, .termin-zeile {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 1rem;
+  font-size: 1.45rem;
+}
+.heizung-name, .termin-was {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.heizung-wert {
+  color: var(--text-dunkel);
+  font-variant-numeric: tabular-nums;
+  flex: none;
+}
+.termin-wann {
+  color: var(--cyan);
+  flex: none;
+  font-size: 1.25rem;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---------- Fuss ---------- */
+
+footer {
+  padding: 0.4rem 3rem 0.8rem;
+  display: flex;
+  justify-content: center;
+}
+.fuss-hinweis {
+  font-size: 1.05rem;
+  color: #3a4a66;
+}
+
+/* ---------- Overlay (Details) ---------- */
+
+#overlay {
+  position: fixed; inset: 0; z-index: 60;
+  display: none;
+  align-items: center; justify-content: center;
+  background: rgba(6, 9, 14, 0.9);
+}
+#overlay.offen { display: flex; }
+#overlay-box {
+  background: var(--karte);
+  border: 1px solid var(--karte-rand);
+  border-radius: 1.5rem;
+  padding: 2.4rem 3rem;
+  width: min(72rem, 88vw);
+  max-height: 78vh;
+  overflow-y: auto;
+  position: relative;
+  box-shadow: 0 0 6rem rgba(0,0,0,0.6);
+}
+#overlay-x {
+  position: absolute;
+  top: 1.1rem; right: 1.1rem;
+  width: 3rem; height: 3rem;
+  border-radius: 50%;
+  border: 1px solid var(--karte-rand);
+  background: transparent;
+  color: var(--text-dunkel);
+  font-size: 1.4rem;
+  cursor: pointer;
+}
+.ov-label {
+  font-size: 1.15rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--text-dunkel);
+  margin-bottom: 1.2rem;
+}
+.ov-inhalt { display: flex; flex-direction: column; gap: 0.8rem; }
+.ov-msg {
+  padding: 0.8rem 1.1rem;
+  border-radius: 0.9rem;
+  background: rgba(124,108,240,0.10);
+}
+.ov-user { background: rgba(79,209,197,0.10); }
+.ov-msg-wer {
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--text-dunkel);
+  margin-bottom: 0.2rem;
+}
+.ov-msg-text { font-size: 1.4rem; line-height: 1.4; }
+.ov-leer { color: var(--text-dunkel); font-size: 1.3rem; }
+.ov-roh-zeile {
+  display: flex;
+  justify-content: space-between;
+  gap: 1.4rem;
+  border-bottom: 1px solid rgba(34,48,71,0.6);
+  padding: 0.55rem 0;
+  font-size: 1.3rem;
+}
+.ov-roh-key { color: var(--text-dunkel); flex: none; }
+.ov-roh-wert { text-align: right; }
+.ov-meta {
+  margin-top: 1.2rem;
+  font-size: 1.05rem;
+  color: var(--text-dunkel);
+}
+
+/* ---------- Text-statt-Sprache ---------- */
+
+#tippen-overlay {
+  position: fixed; inset: 0; z-index: 55;
+  display: none;
+  align-items: center; justify-content: center;
+  background: rgba(6, 9, 14, 0.9);
+}
+#tippen-overlay.offen { display: flex; }
+#tippen-box {
+  background: var(--karte);
+  border: 1px solid var(--karte-rand);
+  border-radius: 1.5rem;
+  padding: 2.2rem 2.6rem;
+  width: min(56rem, 84vw);
+}
+#tippen-form { display: flex; gap: 1rem; margin-top: 1rem; }
+#tippen-eingabe {
+  flex: 1;
+  font-size: 1.6rem;
+  color: var(--text);
+  background: #0d1420;
+  border: 1px solid var(--karte-rand);
+  border-radius: 0.9rem;
+  padding: 0.9rem 1.2rem;
+  outline: none;
+}
+#tippen-form button {
+  font-size: 1.4rem;
+  font-weight: 700;
+  color: #06090f;
+  background: linear-gradient(135deg, var(--akzent-hell), var(--cyan));
+  border: 0;
+  border-radius: 0.9rem;
+  padding: 0.9rem 1.8rem;
+  cursor: pointer;
+}
+
+/* ---------- schmale Screens ---------- */
+
+@media (max-width: 1100px) {
+  main { grid-template-columns: 1fr; grid-template-rows: 40% 1fr; }
+  .uhr { font-size: 4.2rem; }
+}
