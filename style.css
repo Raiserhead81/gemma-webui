@@ -512,3 +512,22 @@ footer {
   cursor: pointer;
 }
 .fuss-knopf:hover { color: var(--text-dunkel); }
+
+/* ---------- Schalter im Kopf (Bilder, Mikro) ---------- */
+
+.schalter-zeile { display: flex; gap: 0.9rem; align-items: center; }
+.bilder-btn {
+  font-size: 1.45rem;
+  font-weight: 700;
+  color: var(--text-dunkel);
+  background: transparent;
+  border: 1px solid var(--karte-rand);
+  border-radius: 2.4rem;
+  padding: 0.7rem 1.8rem;
+  cursor: pointer;
+}
+.bilder-btn.an {
+  color: #04241a;
+  background: var(--cyan);
+  border-color: var(--cyan);
+}

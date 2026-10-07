@@ -47,6 +47,7 @@ const state = {
   /* Weckwort-Dienst */
   wake: { ws: null, offen: false, versuch: 0, timer: null, puffer: [] },
   /* Sonstiges */
+  bilder: localStorage.getItem("gemma_bilder") !== "aus",
   statusTimer: null,
   leerTimer: null,
   lockTyp: null,
@@ -545,13 +546,29 @@ function kachelMusik(m) {
   }
   titel.textContent = m.titel || "—";
   kuenstler.textContent = [m.kuenstler, m.geraet].filter(Boolean).join(" · ") || "—";
-  if (m.cover) {
-    if (cover.src !== m.cover) cover.src = m.cover;
+  /* Bilder-Schalter: AUS = Bild gar nicht erst laden (nur Text) */
+  if (state.bilder && m.cover) {
+    if (cover.getAttribute("src") !== m.cover) cover.src = m.cover;
     cover.hidden = false;
   } else {
+    cover.removeAttribute("src");
     cover.hidden = true;
   }
   $("m-play").innerHTML = m.laeuft ? "&#9208;" : "&#9654;";
+}
+
+function bilderSchalten() {
+  state.bilder = !state.bilder;
+  localStorage.setItem("gemma_bilder", state.bilder ? "an" : "aus");
+  bilderKnopfSetzen();
+  kachelMusik(state.kachelDaten["k-musik"]);
+}
+
+function bilderKnopfSetzen() {
+  const b = $("bilder-btn");
+  b.classList.toggle("an", state.bilder);
+  b.setAttribute("aria-pressed", state.bilder ? "true" : "false");
+  b.textContent = state.bilder ? "Bilder an" : "Bilder aus";
 }
 
 function kachelVital(v) {
@@ -922,6 +939,10 @@ document.addEventListener("click", () => {
 
 /* ---------------- Tasten ---------------- */
 
+$("bilder-btn").addEventListener("click", (ev) => {
+  ev.stopPropagation();
+  bilderSchalten();
+});
 $("orb").addEventListener("click", (ev) => {
   ev.stopPropagation();
   orbTap();
@@ -984,6 +1005,7 @@ $("tippen-form").addEventListener("submit", (ev) => {
 
 uhrTicken();
 orbTakt();
+bilderKnopfSetzen();
 setInterval(uhrTicken, 1000);
 setInterval(orbTakt, 1000);
 setInterval(wiedergabeTakt, 250);
