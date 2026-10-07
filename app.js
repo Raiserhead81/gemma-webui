@@ -46,6 +46,8 @@ const state = {
            ring: [], ringZahl: 0, stuecke: [], stueckeZahl: 0, el: null },
   klang: "soundbar",
   letztesGemma: 0,
+  hinweisText: "",
+  hinweisBis: 0,
   /* Mikrofon */
   mikro: { stream: null, ctx: null, knoten: null, stumm: null, aktiv: false,
            vorlauf: [], rest: null },
@@ -143,7 +145,18 @@ function spieltGerade() {
   return state.wiedergabeBis > state.aCtx.currentTime;
 }
 
+function hinweisSetzen(text, sek) {
+  state.hinweisText = text;
+  state.hinweisBis = Date.now() + (sek || 60) * 1000;
+  $("orb-status").textContent = text;
+  $("fuss-hinweis").textContent = text;
+}
+
 function orbTakt() {
+  if (Date.now() < state.hinweisBis) {
+    $("orb-status").textContent = state.hinweisText;
+    return;
+  }
   if (state.hoert) { orbSetzen("hoert", "Ich höre zu … nochmal tippen beendet"); return; }
   if (Date.now() < state.denkEnde) { orbSetzen("aktiv", "denkt nach …"); return; }
   if (Date.now() - state.letztesGemma < 9000 && !spieltGerade() &&
@@ -398,7 +411,7 @@ function wachenTakt() {
       if (p && p.catch) p.catch(() => {});
     }
   }
-  if ($("fuss-hinweis")) {
+  if ($("fuss-hinweis") && Date.now() >= state.hinweisBis) {
     $("fuss-hinweis").textContent = state.lockTyp ? "Display bleibt wach" : "";
     $("fuss-hinweis").title = state.lockTyp === "wakelock" ? "Bildschirm-Sperre"
       : state.lockTyp === "video" ? "Wiedergabe-Wächter" : "";
@@ -451,16 +464,12 @@ async function mikroAktivieren() {
     } catch (e) {
       const name = (e && e.name) || "";
       if (name === "NotAllowedError" || name === "SecurityError") {
-        $("orb-status").textContent = "Mikro gesperrt";
-        $("fuss-hinweis").textContent =
-          "Mikro erlauben: Einstellungen → Website-Einstellungen → Mikro";
+        hinweisSetzen("Mikro gesperrt: Einstellungen → Website-Einstellungen → Mikro erlauben", 120);
       } else if (name === "NotReadableError" || name === "AbortError" ||
                  name === "NotFoundError") {
-        $("orb-status").textContent = "Mikro ist gerade belegt";
-        $("fuss-hinweis").textContent =
-          "Ein anderer Vorgang nutzt das Mikro - kurz warten, dann nochmal tippen";
+        hinweisSetzen("Mikro ist gerade belegt - kurz warten, dann nochmal tippen", 60);
       } else {
-        $("orb-status").textContent = "Mikro nicht verfügbar";
+        hinweisSetzen("Mikro nicht verfügbar", 60);
       }
       mikroLaeuft = null;
       return false;
@@ -709,6 +718,7 @@ function redeStarten() {
   mikroAktivieren().then((ok) => {
     if (!ok) { state.willReden = false; return; }
     if (state.sessionBereit && state.willReden) {
+      state.hinweisBis = 0;
       state.hoert = true;
       vorlaufFlushen();
       orbSetzen("hoert", "Ich höre zu … nochmal tippen beendet");
