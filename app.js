@@ -48,6 +48,10 @@ const state = {
   wake: { ws: null, offen: false, versuch: 0, timer: null, puffer: [] },
   /* Sonstiges */
   bilder: localStorage.getItem("gemma_bilder") !== "aus",
+  fotos: localStorage.getItem("gemma_fotos") !== "aus",
+  fotoListe: [],
+  fotoPos: 0,
+  fotoTimer: null,
   statusTimer: null,
   leerTimer: null,
   lockTyp: null,
@@ -530,6 +534,68 @@ async function statusHolen() {
   kachelVital(d.vital);
   kachelHeizung(d.heizung);
   kachelTermine(d.termine);
+  if (Array.isArray(d.fotos)) {
+    const davor = state.fotoListe.length;
+    state.fotoListe = d.fotos;
+    if (!d.fotos.length && state.fotos) fotoLeerZeigen();
+    if (davor !== d.fotos.length && state.fotos && !state.fotoTimer) fotoZeigen();
+  }
+}
+
+/* ---------------- Fotos: eigene Fläche mit Platz-Schalter ----------------
+   Quelle ist dieselbe wie in der Station/Diashow (Foto-Ablage auf dem
+   Server). Schalter AUS: Fläche kollabiert komplett, keine Foto-Daten. */
+
+function fotoUrl(eintrag) {
+  const p = new URLSearchParams();
+  p.set("token", CFG.token);
+  p.set("t", eintrag.name);
+  return "/gemma-live/foto/" + encodeURIComponent(eintrag.album) + "/" +
+    encodeURIComponent(eintrag.name) + "?" + p.toString();
+}
+
+function fotoZeigen() {
+  const bild = $("foto-bild");
+  if (!state.fotos) return;
+  if (!state.fotoListe.length) { fotoLeerZeigen(); return; }
+  const eintrag = state.fotoListe[state.fotoPos % state.fotoListe.length];
+  state.fotoPos = (state.fotoPos + 1) % Math.max(1, state.fotoListe.length);
+  if (bild.getAttribute("src") !== fotoUrl(eintrag)) {
+    bild.src = fotoUrl(eintrag);
+    bild.hidden = false;
+  }
+  $("foto-leer").hidden = true;
+  if (!state.fotoTimer) {
+    state.fotoTimer = setInterval(() => {
+      if (state.fotos && !document.hidden) fotoZeigen();
+    }, 20000);
+  }
+}
+
+function fotoLeerZeigen() {
+  $("foto-bild").hidden = true;
+  $("foto-bild").removeAttribute("src");
+  $("foto-leer").hidden = false;
+}
+
+function fotoSchalten() {
+  state.fotos = !state.fotos;
+  localStorage.setItem("gemma_fotos", state.fotos ? "an" : "aus");
+  fotoKnopfSetzen();
+  $("haupt").classList.toggle("ohne-fotos", !state.fotos);
+  if (state.fotos) {
+    fotoZeigen();
+  } else {
+    if (state.fotoTimer) { clearInterval(state.fotoTimer); state.fotoTimer = null; }
+    $("foto-bild").removeAttribute("src");
+    $("foto-bild").hidden = true;
+  }
+}
+
+function fotoKnopfSetzen() {
+  const b = $("foto-btn");
+  b.classList.toggle("an", state.fotos);
+  b.setAttribute("aria-pressed", state.fotos ? "true" : "false");
 }
 
 function kachelMusik(m) {
@@ -943,6 +1009,10 @@ $("bilder-btn").addEventListener("click", (ev) => {
   ev.stopPropagation();
   bilderSchalten();
 });
+$("foto-btn").addEventListener("click", (ev) => {
+  ev.stopPropagation();
+  fotoSchalten();
+});
 $("orb").addEventListener("click", (ev) => {
   ev.stopPropagation();
   orbTap();
@@ -1006,6 +1076,9 @@ $("tippen-form").addEventListener("submit", (ev) => {
 uhrTicken();
 orbTakt();
 bilderKnopfSetzen();
+fotoKnopfSetzen();
+$("haupt").classList.toggle("ohne-fotos", !state.fotos);
+if (state.fotos) fotoZeigen();
 setInterval(uhrTicken, 1000);
 setInterval(orbTakt, 1000);
 setInterval(wiedergabeTakt, 250);
