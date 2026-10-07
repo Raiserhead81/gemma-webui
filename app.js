@@ -42,6 +42,10 @@ const state = {
   quellen: new Set(),
   audioOffen: false,
   audioEmpfangen: 0,
+  audio: { weg: null, still: 0, letzterTakt: 0, sperrt: false,
+           ring: [], ringZahl: 0, stuecke: [], stueckeZahl: 0, el: null },
+  klang: "soundbar",
+  letztesGemma: 0,
   /* Mikrofon */
   mikro: { stream: null, ctx: null, knoten: null, stumm: null, aktiv: false,
            vorlauf: [], rest: null },
@@ -142,6 +146,11 @@ function spieltGerade() {
 function orbTakt() {
   if (state.hoert) { orbSetzen("hoert", "Ich höre zu … nochmal tippen beendet"); return; }
   if (Date.now() < state.denkEnde) { orbSetzen("aktiv", "denkt nach …"); return; }
+  if (Date.now() - state.letztesGemma < 9000 && !spieltGerade() &&
+      Date.now() - state.letztesGemma < 9000 && state.klang === "soundbar") {
+    orbSetzen("spricht", "ich rede (über die Soundbar)");
+    return;
+  }
   if (spieltGerade()) {
     orbSetzen("spricht", "ich rede … tippen, um zu antworten");
     return;
@@ -150,7 +159,17 @@ function orbTakt() {
   orbSetzen("", "Tippen und sprechen");
 }
 
-/* ---------------- Wiedergabe: Gemmas Stimme ---------------- */
+/* ---------------- Wiedergabe: Gemmas Stimme ----------------
+   Zwei Wege, automatisch gewaehlt (nur Klang-Ziel "Display"):
+   - WebAudio: PCM-Frames als AudioBuffer in einem 24-kHz-Kontext
+     (lehnt das Geraet 24 kHz ab, gilt die Browser-Rate + Resampling).
+   - WAV ueber ein normales <audio>-Element: empfangene PCM-Frames werden
+     zu WAV-Blobs (24 kHz) zusammengesetzt und nacheinander abgespielt -
+     der Weg, der auf Geraeten mit zickigem WebAudio praktisch immer tut.
+   Bleibt WebAudio 2 s still, obwohl Audio da ist, wechselt die UI selbst
+   auf den WAV-Weg (die letzten 4 s aus einem Ring laufen dort nach).
+   Klang-Ziel "Soundbar": das Geraet schweigt absichtlich, Gemmas Stimme
+   kommt aus der Soundbar (daher keine Frames). */
 
 function playbackCtx() {
   if (!state.aCtx) {
@@ -158,13 +177,18 @@ function playbackCtx() {
     try {
       state.aCtx = new AC({ sampleRate: 24000 });
     } catch (e) {
-      state.aCtx = new AC();
+      state.aCtx = new AC();          /* Geraet lehnt 24 kHz ab: Browser-Rate */
     }
   }
   if (state.aCtx.state === "suspended") {
-    state.aCtx.resume().catch(() => {});
+    state.aCtx.resume().catch(() => { state.audio.sperrt = true; tonAnzeige(); });
   }
   return state.aCtx;
+}
+
+function tonWegAktiv() {
+  if (CFG.tonWeg === "wav" || CFG.tonWeg === "webaudio") return CFG.tonWeg;
+  return state.audio.weg || "webaudio";
 }
 
 function resampleF32(daten, von, nach) {
@@ -183,6 +207,16 @@ function resampleF32(daten, von, nach) {
 
 function audioAbspielen(int16) {
   state.audioEmpfangen++;
+  if (state.klang === "soundbar") return;      /* Stimme kommt aus der Soundbar */
+  if (tonWegAktiv() === "webaudio" && state.aCtx &&
+      state.aCtx.state === "running") {
+    webaudioAbspielen(int16);
+  } else {
+    wavFuettern(int16);
+  }
+}
+
+function webaudioAbspielen(int16) {
   const ctx = playbackCtx();
   const roh = new Float32Array(int16.length);
   for (let i = 0; i < int16.length; i++) roh[i] = int16[i] / 32768;
@@ -198,22 +232,167 @@ function audioAbspielen(int16) {
   state.quellen.add(quelle);
   quelle.onended = () => state.quellen.delete(quelle);
   state.audioOffen = true;
+  /* Ring fuer den Notwechsel zum WAV-Weg (letzte ~4 s) */
+  state.audio.ring.push(int16);
+  state.audio.ringZahl += int16.length;
+  while (state.audio.ringZahl > 96000 && state.audio.ring.length > 1) {
+    state.audio.ringZahl -= state.audio.ring.shift().length;
+  }
 }
 
-function wiedergabeStoppen() {
-  for (const q of state.quellen) {
-    try { q.stop(); } catch (e) { /* schon vorbei */ }
+/* ---------- WAV-Weg ---------- */
+
+function audioElement() {
+  if (state.audio.el) return state.audio.el;
+  const el = document.createElement("audio");
+  el.setAttribute("playsinline", "");
+  el.style.cssText = "position:fixed;width:1px;height:1px;opacity:0;pointer-events:none";
+  document.body.appendChild(el);
+  el.addEventListener("ended", () => {
+    try { URL.revokeObjectURL(el.dataset.url || ""); } catch (e) { /* egal */ }
+    el.removeAttribute("src");
+    wavStartenFallsFrei();
+    wiedergabePruefen();
+  });
+  state.audio.el = el;
+  return el;
+}
+
+function wavBlobAus(liste, n) {
+  const puffer = new ArrayBuffer(44 + n * 2);
+  const view = new DataView(puffer);
+  const wort = (pos, text) => {
+    for (let i = 0; i < text.length; i++) view.setUint8(pos + i, text.charCodeAt(i));
+  };
+  wort(0, "RIFF"); view.setUint32(4, 36 + n * 2, true);
+  wort(8, "WAVE"); wort(12, "fmt ");
+  view.setUint32(16, 16, true); view.setUint16(20, 1, true);
+  view.setUint16(22, 1, true); view.setUint32(24, 24000, true);
+  view.setUint32(28, 48000, true); view.setUint16(32, 2, true);
+  view.setUint16(34, 16, true); wort(36, "data");
+  view.setUint32(40, n * 2, true);
+  let pos = 44;
+  for (const stueck of liste) {
+    for (let i = 0; i < stueck.length; i++, pos += 2) view.setInt16(pos, stueck[i], true);
   }
-  state.quellen.clear();
-  state.wiedergabeBis = 0;
-  state.audioOffen = false;
+  return new Blob([puffer], { type: "audio/wav" });
+}
+
+function wavFuettern(int16) {
+  state.audio.stuecke.push(int16);
+  state.audio.stueckeZahl += int16.length;
+  state.audioOffen = true;
+  wavStartenFallsFrei();
+}
+
+function wavStartenFallsFrei() {
+  const el = audioElement();
+  if (el.src && !el.paused && !el.ended) return;
+  if (!state.audio.stueckeZahl) { wiedergabePruefen(); return; }
+  const grenze = 24000 * 60;                 /* max. 60 s pro Blob */
+  let n = 0, i = 0;
+  for (; i < state.audio.stuecke.length && n < grenze; i++) {
+    n += state.audio.stuecke[i].length;
+  }
+  const teil = state.audio.stuecke.slice(0, i);
+  state.audio.stuecke = state.audio.stuecke.slice(i);
+  state.audio.stueckeZahl -= n;
+  const url = URL.createObjectURL(wavBlobAus(teil, n));
+  el.dataset.url = url;
+  el.src = url;
+  const p = el.play();
+  if (p && p.catch) p.catch(() => { state.audio.sperrt = true; tonAnzeige(); });
+}
+
+/* ---------- gemeinsam: Ende erkennen, stoppen, Zustand zeigen ---------- */
+
+function wiedergabePruefen() {
+  if (!state.audioOffen || !state.wsOnline) return;
+  let leer = false;
+  if (state.klang === "soundbar") {
+    leer = false;
+  } else if (tonWegAktiv() === "wav") {
+    const el = state.audio.el;
+    leer = !state.audio.stueckeZahl &&
+           (!el || !el.src || el.ended || el.paused);
+  } else if (state.aCtx) {
+    leer = state.aCtx.currentTime > state.wiedergabeBis + 0.05;
+  }
+  if (leer) {
+    state.audioOffen = false;
+    sendeJson({ typ: "wiedergabe_leer" });
+  }
 }
 
 function wiedergabeTakt() {
-  if (!state.audioOffen || !state.aCtx || !state.wsOnline) return;
-  if (state.aCtx.currentTime > state.wiedergabeBis + 0.05) {
-    state.audioOffen = false;
-    sendeJson({ typ: "wiedergabe_leer" });
+  wiedergabePruefen();
+  if (state.klang !== "soundbar" && tonWegAktiv() === "webaudio" &&
+      state.audioOffen) {
+    const ctx = state.aCtx;
+    if (!ctx || ctx.state !== "running") {
+      state.audio.still++;
+    } else if (ctx.currentTime <= state.audio.letzterTakt) {
+      state.audio.still++;
+    } else {
+      state.audio.still = 0;
+      state.audio.letzterTakt = ctx.currentTime;
+    }
+    if (state.audio.still >= 8) {            /* 2 s kein Fortschritt */
+      klangNotWav();
+    }
+  }
+}
+
+function klangNotWav() {
+  state.audio.weg = "wav";
+  state.audio.still = 0;
+  for (const stueck of state.audio.ring) wavFuettern(stueck);
+  state.audio.ring = [];
+  state.audio.ringZahl = 0;
+  for (const q of state.quellen) { try { q.stop(); } catch (e) { /* weg */ } }
+  state.quellen.clear();
+  state.wiedergabeBis = 0;
+  tonAnzeige();
+}
+
+function wiedergabeStoppen() {
+  for (const q of state.quellen) { try { q.stop(); } catch (e) { /* weg */ } }
+  state.quellen.clear();
+  state.wiedergabeBis = 0;
+  state.audio.ring = [];
+  state.audio.ringZahl = 0;
+  state.audio.stuecke = [];
+  state.audio.stueckeZahl = 0;
+  if (state.audio.el) {
+    try { state.audio.el.pause(); } catch (e) { /* weg */ }
+    state.audio.el.removeAttribute("src");
+  }
+  state.audioOffen = false;
+}
+
+function spieltGerade() {
+  if (state.quellen.size > 0) return true;
+  const el = state.audio.el;
+  if (el && el.src && !el.paused && !el.ended) return true;
+  if (!state.aCtx) return false;
+  return state.wiedergabeBis > state.aCtx.currentTime;
+}
+
+/* Ton-Zustand sichtbar machen (Kay-Sprache, ohne Fachbegriffe) */
+
+function tonAnzeige() {
+  const el = $("ton");
+  el.hidden = false;
+  if (state.klang === "soundbar") {
+    el.textContent = "Klang: Soundbar";
+    el.className = "ton ok";
+  } else if (state.audio.weg === "wav" ||
+             (state.aCtx && state.aCtx.state === "running")) {
+    el.textContent = "Ton an";
+    el.className = "ton ok";
+  } else {
+    el.textContent = "Ton freischalten";
+    el.className = "ton warn";
   }
 }
 
@@ -429,6 +608,7 @@ function gespraechVerbinden() {
         break;
       case "gemma":
         if (d.text) chatAnhaengen("Gemma", d.text);
+        state.letztesGemma = Date.now();
         break;
       case "denkt":
       case "werkzeug":
@@ -542,6 +722,11 @@ async function statusHolen() {
     d = await r.json();
   } catch (e) {
     return;
+  }
+  if (d.klang && d.klang.ziel) {
+    const vorher = state.klang;
+    state.klang = d.klang.ziel;
+    if (vorher !== state.klang) tonAnzeige();
   }
   kachelMusik(d.musik);
   kachelVital(d.vital);
@@ -764,6 +949,27 @@ async function musikAktion(aktion) {
     }
   } catch (e) { /* Kachel bleibt wie sie ist */ }
   statusHolen();
+}
+
+async function klangSchalten() {
+  const ziel = state.klang === "soundbar" ? "klang_show" : "klang_soundbar";
+  const p = new URLSearchParams();
+  p.set("token", CFG.token);
+  p.set("aktion", ziel);
+  p.set("t", Date.now());
+  try {
+    const r = await fetch("/gemma-live/status?" + p.toString(), { cache: "no-store" });
+    if (r.ok) {
+      const d = await r.json();
+      if (d && d.klang && d.klang.ziel) {
+        state.klang = d.klang.ziel;
+        if (state.klang === "soundbar") {
+          wiedergabeStoppen();               /* Soundbar spricht: Ton hier aus */
+        }
+      }
+    }
+  } catch (e) { /* Anzeige bleibt wie sie ist */ }
+  tonAnzeige();
 }
 
 /* ---------------- Verlauf (letzte Gespräche aller Geräte) ---------------- */
@@ -1024,6 +1230,16 @@ $("bilder-btn").addEventListener("click", (ev) => {
   ev.stopPropagation();
   bilderSchalten();
 });
+$("ton").addEventListener("click", (ev) => {
+  ev.stopPropagation();
+  if (state.klang === "soundbar") { klangSchalten(); return; }
+  playbackCtx();
+  tonAnzeige();
+});
+$("klang-btn").addEventListener("click", (ev) => {
+  ev.stopPropagation();
+  klangSchalten();
+});
 $("foto-btn").addEventListener("click", (ev) => {
   ev.stopPropagation();
   fotoSchalten();
@@ -1092,6 +1308,7 @@ uhrTicken();
 orbTakt();
 bilderKnopfSetzen();
 fotoKnopfSetzen();
+tonAnzeige();
 $("haupt").classList.toggle("ohne-fotos", !state.fotos);
 if (state.fotos) fotoZeigen();
 setInterval(uhrTicken, 1000);
@@ -1115,6 +1332,8 @@ window.gemmaIntern = {
     hoert: state.hoert, mikro: state.mikro.aktiv,
     wake: state.wake.offen, chat: state.chat.length,
     audioFrames: state.audioEmpfangen,
+    klang: state.klang, tonWeg: tonWegAktiv(),
+    tonZustand: state.aCtx ? state.aCtx.state : "keiner",
     kacheln: Object.keys(state.kachelDaten)
   })
 };

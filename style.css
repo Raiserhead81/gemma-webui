@@ -577,3 +577,27 @@ main:not(.ohne-fotos) .gespraech-kachel .kachel-label { letter-spacing: 0.14em; 
 
 /* hidden-Attribut gewinnt immer (z.B. Foto-Leerhinweis ueber dem Bild) */
 [hidden] { display: none !important; }
+
+
+/* ---------- Ton-Anzeige + Klang-Schalter ---------- */
+.ton {
+  font-size: 1.15rem;
+  font-weight: 600;
+  color: var(--text-dunkel);
+  background: transparent;
+  border: 1px solid var(--karte-rand);
+  border-radius: 2rem;
+  padding: 0.4rem 1.2rem;
+  cursor: pointer;
+}
+.ton.ok { color: var(--gruen); border-color: rgba(61,220,132,0.4); }
+.ton.warn {
+  color: #3d2f00;
+  background: var(--gelb);
+  border-color: var(--gelb);
+  animation: ton-puls 1.6s ease-in-out infinite;
+}
+@keyframes ton-puls {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.65; }
+}
