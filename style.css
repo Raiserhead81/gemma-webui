@@ -601,3 +601,5 @@ main:not(.ohne-fotos) .gespraech-kachel .kachel-label { letter-spacing: 0.14em; 
   0%, 100% { opacity: 1; }
   50% { opacity: 0.65; }
 }
+
+.fuss-hinweis { margin-left: 1.2rem; }
