@@ -503,3 +503,12 @@ footer {
   main { grid-template-columns: 1fr; grid-template-rows: 40% 1fr; }
   .uhr { font-size: 4.2rem; }
 }
+
+.fuss-knopf {
+  font-size: 1.05rem;
+  color: #3a4a66;
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+}
+.fuss-knopf:hover { color: var(--text-dunkel); }

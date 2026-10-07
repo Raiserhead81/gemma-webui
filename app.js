@@ -117,11 +117,16 @@ function chatAusVerlauf() {
   }
 }
 
+function spieltGerade() {
+  if (!state.aCtx) return false;
+  if (state.quellen.size > 0) return true;
+  return state.wiedergabeBis > state.aCtx.currentTime;
+}
+
 function orbTakt() {
   if (state.hoert) { orbSetzen("hoert", "Ich höre zu … nochmal tippen beendet"); return; }
   if (Date.now() < state.denkEnde) { orbSetzen("aktiv", "denkt nach …"); return; }
-  if (Date.now() < state.wiedergabeBis * 1000 - 1000 ||
-      (state.aCtx && state.quellen.size > 0)) {
+  if (spieltGerade()) {
     orbSetzen("spricht", "ich rede … tippen, um zu antworten");
     return;
   }
@@ -241,8 +246,9 @@ async function mikroAktivieren() {
 
 function mikroChunk(f32, rate) {
   const pcm = pcm16Aus(f32, rate);
-  /* Weckwort-Dienst bekommt immer etwas, wenn das Mikro an ist */
-  wakeSenden(pcm);
+  /* Der Weckwort-Dienst hört nur außerhalb eines Gesprächs mit - sonst
+     würde er Gemmas eigene Stimme vom Lautsprecher als Weckwort hören. */
+  if (!state.hoert && !state.ws) wakeSenden(pcm);
   if (!state.hoert) return;
   const ws = state.ws;
   if (!ws || ws.readyState !== 1 || !state.sessionBereit) {
@@ -956,6 +962,12 @@ $("mikro-btn").addEventListener("click", async (ev) => {
     $("mikro-btn").classList.add("an");
     punktSetzen("gruen", "lauscht");
   }
+});
+$("tippen-btn").addEventListener("click", (ev) => {
+  ev.stopPropagation();
+  $("tippen-overlay").classList.add("offen");
+  $("tippen-overlay").setAttribute("aria-hidden", "false");
+  $("tippen-eingabe").focus();
 });
 $("tippen-form").addEventListener("submit", (ev) => {
   ev.preventDefault();
