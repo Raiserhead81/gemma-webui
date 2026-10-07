@@ -457,19 +457,21 @@ async function mikroAktivieren() {
   mikroLaeuft = (async () => {
     let stream;
     try {
-      stream = await navigator.mediaDevices.getUserMedia({
-        audio: { channelCount: 1, echoCancellation: true,
-                 noiseSuppression: true, autoGainControl: true }
-      });
+      /* Schlichtestmoeglicher Aufruf: {audio: true} OHNE Constraints -
+         Geraete wie Kays Silk werfen bei channelCount/echoCancellation-
+         Objekten sofort OverconstrainedError OHNE Berechtigungs-Dialog.
+         echoCancellation etc. sind Nice-to-have, der Server resampled
+         ohnehin auf 16 kHz. */
+      stream = await navigator.mediaDevices.getUserMedia({ audio: true });
     } catch (e) {
-      const name = (e && e.name) || "";
+      const name = (e && e.name) || "unbekannt";
+      /* Zwangstransparenz: der ROHE Fehler-Name steht vorn - so sehen wir
+         in 10 Sekunden, ob das Geraet blockt (NotAllowed) oder unser
+         Aufruf/Device schuld ist (Overconstrained/NotReadable/...). */
       if (name === "NotAllowedError" || name === "SecurityError") {
-        hinweisSetzen("Mikro gesperrt: Einstellungen → Website-Einstellungen → Mikro erlauben", 120);
-      } else if (name === "NotReadableError" || name === "AbortError" ||
-                 name === "NotFoundError") {
-        hinweisSetzen("Mikro ist gerade belegt - kurz warten, dann nochmal tippen", 60);
+        hinweisSetzen("Mikro: " + name + " - im Browser-Zugriffsfenster erlauben", 120);
       } else {
-        hinweisSetzen("Mikro nicht verfügbar", 60);
+        hinweisSetzen("Mikro: " + name + " - kurz warten, dann nochmal tippen", 120);
       }
       mikroLaeuft = null;
       return false;
