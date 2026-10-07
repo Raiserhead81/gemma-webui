@@ -99,7 +99,17 @@ function chatLeeren() {
 
 function chatAnhaengen(wer, text) {
   if (!text) return;
-  state.chat.push({ wer, text });
+  const letzte = state.chat[state.chat.length - 1];
+  if (letzte && letzte.wer === wer && Date.now() - letzte.zeit < 15000) {
+    letzte.text += text;
+    letzte.zeit = Date.now();
+    const box = $("chat");
+    const zeile = box.lastElementChild;
+    if (zeile) zeile.querySelector(".chat-text").textContent = letzte.text;
+    box.scrollTop = box.scrollHeight;
+    return;
+  }
+  state.chat.push({ wer, text, zeit: Date.now() });
   if (state.chat.length > 40) state.chat.splice(0, state.chat.length - 40);
   const box = $("chat");
   const zeile = document.createElement("div");
@@ -374,6 +384,7 @@ function gespraechSchliessen() {
   state.wsOnline = false;
   state.sessionBereit = false;
   state.willReden = false;
+  state.hoert = false;
   if (ws) { try { ws.close(1000, "fertig"); } catch (e) { /* weg */ } }
   wiedergabeStoppen();
   if (!state.mikro.aktiv) punktSetzen("", "");
