@@ -380,6 +380,31 @@ function spieltGerade() {
 
 /* Ton-Zustand sichtbar machen (Kay-Sprache, ohne Fachbegriffe) */
 
+function wachenTakt() {
+  /* Stiller Audio-Graph nur im Klang-Modus "Display" - bei "Soundbar" soll
+     der Geraete-Audio-Pfad frei bleiben, dort haelt das Video wach. */
+  if (state.wachen) {
+    if (state.klang === "show" && !document.hidden) {
+      if (state.wachen.state === "suspended") {
+        state.wachen.resume().catch(() => {});
+      }
+    } else if (state.wachen.state === "running") {
+      state.wachen.suspend().catch(() => {});
+    }
+  }
+  if (state.video && state.lockTyp === "video" && !document.hidden) {
+    if (state.video.paused) {
+      const p = state.video.play();
+      if (p && p.catch) p.catch(() => {});
+    }
+  }
+  if ($("fuss-hinweis")) {
+    $("fuss-hinweis").textContent = state.lockTyp ? "Display bleibt wach" : "";
+    $("fuss-hinweis").title = state.lockTyp === "wakelock" ? "Bildschirm-Sperre"
+      : state.lockTyp === "video" ? "Wiedergabe-Wächter" : "";
+  }
+}
+
 function tonAnzeige() {
   const el = $("ton");
   el.hidden = false;
@@ -409,18 +434,37 @@ function pcm16Aus(f32, rate) {
   return raus;
 }
 
+let mikroLaeuft = null;
+
 async function mikroAktivieren() {
   if (state.mikro.aktiv) return true;
-  let stream;
-  try {
-    stream = await navigator.mediaDevices.getUserMedia({
-      audio: { channelCount: 1, echoCancellation: true,
-               noiseSuppression: true, autoGainControl: true }
-    });
-  } catch (e) {
-    $("orb-status").textContent = "Mikrofon nicht verfügbar";
-    return false;
-  }
+  /* Nur EIN getUserMedia - gleichzeitig feurende Wege (Weckwort + Orb-Tipp)
+     teilen sich denselben Aufruf, Silk lehnt einen zweiten Stream ab. */
+  if (mikroLaeuft) return mikroLaeuft;
+  mikroLaeuft = (async () => {
+    let stream;
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({
+        audio: { channelCount: 1, echoCancellation: true,
+                 noiseSuppression: true, autoGainControl: true }
+      });
+    } catch (e) {
+      const name = (e && e.name) || "";
+      if (name === "NotAllowedError" || name === "SecurityError") {
+        $("orb-status").textContent = "Mikro gesperrt";
+        $("fuss-hinweis").textContent =
+          "Mikro erlauben: Einstellungen → Website-Einstellungen → Mikro";
+      } else if (name === "NotReadableError" || name === "AbortError" ||
+                 name === "NotFoundError") {
+        $("orb-status").textContent = "Mikro ist gerade belegt";
+        $("fuss-hinweis").textContent =
+          "Ein anderer Vorgang nutzt das Mikro - kurz warten, dann nochmal tippen";
+      } else {
+        $("orb-status").textContent = "Mikro nicht verfügbar";
+      }
+      mikroLaeuft = null;
+      return false;
+    }
   const AC = window.AudioContext || window.webkitAudioContext;
   let ctx;
   try { ctx = new AC({ sampleRate: 16000 }); } catch (e) { ctx = new AC(); }
@@ -437,7 +481,10 @@ async function mikroAktivieren() {
   state.mikro = { stream, ctx, knoten, stumm, aktiv: true,
                   vorlauf: [], rest: null };
   wakeVerbinden();
+  mikroLaeuft = null;
   return true;
+  })();
+  return mikroLaeuft;
 }
 
 function mikroChunk(f32, rate) {
@@ -1146,6 +1193,7 @@ async function lockStarten() {
     const ctx = canvas.getContext("2d");
     const video = document.createElement("video");
     video.muted = true;
+    video.loop = true;
     video.setAttribute("playsinline", "");
     video.setAttribute("autoplay", "");
     video.style.cssText = "position:fixed;width:1px;height:1px;opacity:0;pointer-events:none";
@@ -1159,6 +1207,18 @@ async function lockStarten() {
     };
     zeichnen();
     video.srcObject = stream;
+    /* Stillstehender Audio-Graph ueber dem Video (NoSleep-Art): einige
+       Geraete-Schoner hoeren auf aktive Wiedergabe, nicht nur aufs Bild. */
+    try {
+      const AC = window.AudioContext || window.webkitAudioContext;
+      state.wachen = new AC();
+      const quelle = state.wachen.createMediaElementSource(video);
+      const stumm = state.wachen.createGain();
+      stumm.gain.value = 0;
+      quelle.connect(stumm);
+      stumm.connect(state.wachen.destination);
+      state.wachen.resume().catch(() => {});
+    } catch (e) { /* Video allein muss reichen */ }
     const play = video.play();
     if (play && play.catch) play.catch(() => {});
     state.video = video;
@@ -1173,6 +1233,9 @@ document.addEventListener("visibilitychange", () => {
     state.lockTyp = null;
     state.lockSentinel = null;
     if (state.video) state.video.pause();
+    if (state.wachen && state.wachen.state === "running") {
+      state.wachen.suspend().catch(() => {});
+    }
     lockStarten();
     wakeVerbinden();
     statusHolen();
@@ -1314,6 +1377,7 @@ if (state.fotos) fotoZeigen();
 setInterval(uhrTicken, 1000);
 setInterval(orbTakt, 1000);
 setInterval(wiedergabeTakt, 250);
+setInterval(wachenTakt, 2000);
 setInterval(statusHolen, Math.max(15, CFG.statusSek) * 1000);
 setInterval(verlaufPoll, 30000);
 startupPruefen();
