@@ -1,0 +1,234 @@
+/* Gemma Display, dunkles Theme fuer Echo Show 15 (1920x1080) und kleiner.
+   Skalierung ueber rem: html font-size folgt der Viewport-Breite. */
+
+:root {
+  --bg: #0a0e14;
+  --karte: #121a26;
+  --karte-rand: #223047;
+  --text: #f2f5fa;
+  --text-dunkel: #8fa3bd;
+  --akzent: #7c6cf0;
+  --akzent-hell: #b9a8ff;
+  --cyan: #4fd1c5;
+  --gruen: #3ddc84;
+  --rot: #ff5c74;
+  --gelb: #ffd166;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+html { font-size: clamp(9px, 0.95vw, 22px); }
+
+body {
+  background:
+    radial-gradient(120rem 60rem at 85% -10%, rgba(124,108,240,0.14), transparent 60%),
+    radial-gradient(90rem 50rem at 0% 110%, rgba(79,209,197,0.10), transparent 60%),
+    var(--bg);
+  color: var(--text);
+  font-family: "Amazon Ember", "Helvetica Neue", Arial, sans-serif;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  -webkit-user-select: none;
+  user-select: none;
+  cursor: default;
+}
+
+/* ---------- Startup / Kiosk-Aufforderung ---------- */
+
+#startup {
+  position: fixed; inset: 0; z-index: 50;
+  display: none;
+  align-items: center; justify-content: center;
+  background: rgba(6, 9, 14, 0.94);
+}
+#startup.sichtbar { display: flex; }
+.startup-box {
+  text-align: center;
+  background: var(--karte);
+  border: 1px solid var(--karte-rand);
+  border-radius: 1.5rem;
+  padding: 3rem 4.5rem;
+  box-shadow: 0 0 6rem rgba(124,108,240,0.25);
+}
+.startup-box h1 { font-size: 2.6rem; margin: 1.2rem 0 0.6rem; }
+.startup-box p { color: var(--text-dunkel); font-size: 1.25rem; margin-bottom: 1.6rem; }
+#kiosk-btn {
+  font-size: 1.9rem;
+  font-weight: 700;
+  color: #06090f;
+  background: linear-gradient(135deg, var(--akzent-hell), var(--cyan));
+  border: 0; border-radius: 1rem;
+  padding: 1.1rem 3.4rem;
+  cursor: pointer;
+}
+.startup-hinweis { margin-top: 1.4rem !important; font-size: 1rem !important; }
+
+/* ---------- Kopf: Uhr + Orb ---------- */
+
+header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1.6rem 3rem 0.6rem;
+  gap: 2rem;
+}
+
+.uhr {
+  font-size: 8.6rem;
+  font-weight: 800;
+  line-height: 1;
+  letter-spacing: 0.02em;
+  font-variant-numeric: tabular-nums;
+}
+.datum {
+  font-size: 2rem;
+  color: var(--text-dunkel);
+  margin-top: 0.5rem;
+  text-transform: capitalize;
+}
+
+.orb-block { display: flex; flex-direction: column; align-items: center; gap: 0.8rem; }
+.orb-status { font-size: 1.2rem; color: var(--text-dunkel); }
+
+.orb {
+  width: 9.5rem;
+  aspect-ratio: 1 / 1;
+  border-radius: 50%;
+  position: relative;
+  background:
+    radial-gradient(circle at 34% 28%, #d9cfff 0%, var(--akzent-hell) 22%, #7c6cf0 48%, #3a2d9c 78%, #1b1460 100%);
+  box-shadow:
+    0 0 4.5rem rgba(124,108,240,0.5),
+    0 0 1.2rem rgba(185,168,255,0.5),
+    inset 0 0 2rem rgba(255,255,255,0.22);
+  animation: orb-puls 4.5s ease-in-out infinite;
+}
+.orb-ring {
+  position: absolute; inset: -0.7rem;
+  border-radius: 50%;
+  border: 0.18rem solid rgba(185,168,255,0.35);
+  border-top-color: var(--cyan);
+  animation: orb-dreh 9s linear infinite;
+}
+.orb.aktiv {
+  animation: orb-puls 1.1s ease-in-out infinite;
+  box-shadow:
+    0 0 7rem rgba(79,209,197,0.65),
+    0 0 2rem rgba(185,168,255,0.8),
+    inset 0 0 2.4rem rgba(255,255,255,0.35);
+}
+.orb.aus {
+  animation: none;
+  filter: grayscale(0.85) brightness(0.5);
+}
+@keyframes orb-puls {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.07); }
+}
+@keyframes orb-dreh {
+  to { transform: rotate(360deg); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .orb, .orb-ring { animation: none !important; }
+}
+
+/* ---------- Letzte Antwort ---------- */
+
+main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 1.4rem;
+  padding: 1.2rem 3rem 1rem;
+  min-height: 0;
+}
+
+.antwort-kachel {
+  background: var(--karte);
+  border: 1px solid var(--karte-rand);
+  border-radius: 1.4rem;
+  padding: 1.6rem 2.2rem;
+  min-height: 9.5rem;
+  max-height: 17rem;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 0.5rem 2rem rgba(0,0,0,0.35);
+}
+.antwort-text {
+  font-size: 2.35rem;
+  line-height: 1.35;
+  font-weight: 500;
+  overflow-y: auto;
+  margin-top: 0.7rem;
+  -webkit-user-select: text;
+  user-select: text;
+  cursor: auto;
+}
+.antwort-meta { margin-top: auto; padding-top: 0.7rem; color: var(--text-dunkel); font-size: 1.15rem; }
+
+/* ---------- Kachelraster ---------- */
+
+.raster {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 1.4rem;
+  flex: 1;
+  min-height: 0;
+}
+@media (max-width: 1200px) { .raster { grid-template-columns: repeat(2, 1fr); } }
+@media (max-width: 700px)  { .raster { grid-template-columns: 1fr; } }
+
+.kachel {
+  background: var(--karte);
+  border: 1px solid var(--karte-rand);
+  border-radius: 1.4rem;
+  padding: 1.3rem 1.6rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  min-height: 0;
+  overflow: hidden;
+}
+.kachel-label {
+  font-size: 1.05rem;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  color: var(--text-dunkel);
+}
+.kachel-wert {
+  font-size: 2.5rem;
+  font-weight: 800;
+  line-height: 1.1;
+  word-break: break-word;
+}
+.kachel-zusatz { font-size: 1.1rem; color: var(--text-dunkel); margin-top: auto; }
+
+.kachel.ok    { border-color: rgba(61,220,132,0.55); }
+.kachel.ok    .kachel-wert { color: var(--gruen); }
+.kachel.warn  { border-color: rgba(255,209,102,0.55); }
+.kachel.warn  .kachel-wert { color: var(--gelb); }
+.kachel.fehler{ border-color: rgba(255,92,116,0.55); }
+.kachel.fehler .kachel-wert { color: var(--rot); }
+
+/* ---------- Fusszeile ---------- */
+
+footer {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 0.8rem 3rem 1.2rem;
+  font-size: 1.05rem;
+  color: var(--text-dunkel);
+}
+.badges {
+  padding: 0.25rem 0.9rem;
+  border-radius: 2rem;
+  border: 1px solid var(--karte-rand);
+  font-variant-numeric: tabular-nums;
+}
+.badge-ok   { color: var(--gruen); border-color: rgba(61,220,132,0.5); }
+.badge-warn { color: var(--gelb);  border-color: rgba(255,209,102,0.5); }
+.badge-aus  { color: var(--rot);   border-color: rgba(255,92,116,0.5); }
+.fuss-rechts { margin-left: auto; letter-spacing: 0.08em; }

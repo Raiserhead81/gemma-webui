@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#0a0e14">
+<title>Gemma</title>
+<link rel="stylesheet" href="style.css">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Ccircle cx='32' cy='32' r='30' fill='%237c6cf0'/%3E%3Ccircle cx='32' cy='32' r='18' fill='%23b9a8ff'/%3E%3C/svg%3E">
+</head>
+<body>
+
+<div id="startup">
+  <div class="startup-box">
+    <div class="orb orb-startup" aria-hidden="true"></div>
+    <h1>Gemma Display</h1>
+    <p>Antippen startet Vollbild und hält das Display wach.</p>
+    <button id="kiosk-btn" type="button">Kiosk starten</button>
+    <p class="startup-hinweis" id="startup-hinweis">Die Adressezeile verschwindet im Vollbild.</p>
+  </div>
+</div>
+
+<header>
+  <div class="uhr-block">
+    <div id="uhr" class="uhr">00:00</div>
+    <div id="datum" class="datum">Sonntag, 7. Oktober</div>
+  </div>
+  <div class="orb-block">
+    <div id="orb" class="orb" aria-hidden="true"><span class="orb-ring"></span></div>
+    <div id="orb-status" class="orb-status">bereit</div>
+  </div>
+</header>
+
+<main>
+  <section class="antwort-kachel">
+    <div class="kachel-label">Letzte Antwort</div>
+    <div id="antwort" class="antwort-text">Noch keine Antwort im Verlauf.</div>
+    <div id="antwort-meta" class="antwort-meta"></div>
+  </section>
+
+  <section class="raster">
+    <div class="kachel" id="k-bruecke">
+      <div class="kachel-label">Gemma-Live Brücke</div>
+      <div class="kachel-wert">offline</div>
+      <div class="kachel-zusatz">warte auf Verbindung</div>
+    </div>
+    <div class="kachel" id="k-session">
+      <div class="kachel-label">Gemini Session</div>
+      <div class="kachel-wert">inaktiv</div>
+      <div class="kachel-zusatz">keine Session</div>
+    </div>
+    <div class="kachel" id="k-gespraech">
+      <div class="kachel-label">Letztes Gespräch</div>
+      <div class="kachel-wert">—</div>
+      <div class="kachel-zusatz">noch keine Daten</div>
+    </div>
+    <div class="kachel" id="k-geraet">
+      <div class="kachel-label">Gerät</div>
+      <div class="kachel-wert">—</div>
+      <div class="kachel-zusatz">warte auf Verlauf</div>
+    </div>
+    <div class="kachel" id="k-modell">
+      <div class="kachel-label">Modell</div>
+      <div class="kachel-wert">—</div>
+      <div class="kachel-zusatz">Brücke-Config</div>
+    </div>
+    <div class="kachel" id="k-stimme">
+      <div class="kachel-label">Stimme</div>
+      <div class="kachel-wert">—</div>
+      <div class="kachel-zusatz">Brücke-Config</div>
+    </div>
+    <div class="kachel" id="k-aktiv">
+      <div class="kachel-label">Gemma aktiv</div>
+      <div class="kachel-wert">ruht</div>
+      <div class="kachel-zusatz">kein Vorgang</div>
+    </div>
+    <div class="kachel" id="k-kiosk">
+      <div class="kachel-label">Display</div>
+      <div class="kachel-wert">—</div>
+      <div class="kachel-zusatz">Wake Lock unbekannt</div>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <span id="f-ws" class="badges badge-aus">WS aus</span>
+  <span id="f-lock" class="badges badge-aus">Lock: —</span>
+  <span id="f-voll" class="badges badge-aus">kein Vollbild</span>
+  <span class="fuss-rechts">gemma.gemivo.de</span>
+</footer>
+
+<script src="config.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
