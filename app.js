@@ -41,6 +41,7 @@ const state = {
   wiedergabeBis: 0,
   quellen: new Set(),
   audioOffen: false,
+  audioEmpfangen: 0,
   /* Mikrofon */
   mikro: { stream: null, ctx: null, knoten: null, stumm: null, aktiv: false,
            vorlauf: [], rest: null },
@@ -171,6 +172,7 @@ function resampleF32(daten, von, nach) {
 }
 
 function audioAbspielen(int16) {
+  state.audioEmpfangen++;
   const ctx = playbackCtx();
   const roh = new Float32Array(int16.length);
   for (let i = 0; i < int16.length; i++) roh[i] = int16[i] / 32768;
@@ -610,8 +612,10 @@ function kachelMusik(m) {
     $("m-play").innerHTML = "&#9654;";
     return;
   }
-  titel.textContent = m.titel || "—";
-  kuenstler.textContent = [m.kuenstler, m.geraet].filter(Boolean).join(" · ") || "—";
+  titel.textContent = m.titel || "nichts läuft";
+  kuenstler.textContent = m.titel
+    ? ([m.kuenstler, m.geraet].filter(Boolean).join(" · ") || "—")
+    : (m.verbunden ? "Spotify ist verbunden" : "Musik ist aus");
   /* Bilder-Schalter: AUS = Bild gar nicht erst laden (nur Text) */
   if (state.bilder && m.cover) {
     if (cover.getAttribute("src") !== m.cover) cover.src = m.cover;
@@ -1099,6 +1103,7 @@ window.gemmaIntern = {
     ws: !!state.ws, online: state.wsOnline, bereit: state.sessionBereit,
     hoert: state.hoert, mikro: state.mikro.aktiv,
     wake: state.wake.offen, chat: state.chat.length,
+    audioFrames: state.audioEmpfangen,
     kacheln: Object.keys(state.kachelDaten)
   })
 };
