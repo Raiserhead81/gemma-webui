@@ -212,6 +212,146 @@ main {
 .kachel.fehler{ border-color: rgba(255,92,116,0.55); }
 .kachel.fehler .kachel-wert { color: var(--rot); }
 
+/* ---------- Klickbare Kacheln ---------- */
+
+.kachel.klickbar,
+.antwort-kachel.klickbar {
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: transform 0.08s ease, border-color 0.15s ease;
+}
+.kachel.klickbar:active,
+.antwort-kachel.klickbar:active { transform: scale(0.98); }
+.kachel.klickbar:focus-visible,
+.antwort-kachel.klickbar:focus-visible {
+  outline: 0.3rem solid var(--akzent);
+  outline-offset: 0.2rem;
+}
+.kachel-hinweis {
+  position: absolute;
+  top: 1.1rem;
+  right: 1.3rem;
+  font-size: 1rem;
+  color: var(--text-dunkel);
+  opacity: 0.65;
+  pointer-events: none;
+}
+.kachel, .antwort-kachel { position: relative; }
+
+/* ---------- Detail-Overlay ---------- */
+
+#overlay {
+  position: fixed; inset: 0; z-index: 80;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  background: rgba(4, 7, 12, 0.93);
+  padding: 3.5rem;
+}
+#overlay.offen { display: flex; }
+
+#overlay-box {
+  position: relative;
+  background: var(--karte);
+  border: 1px solid var(--karte-rand);
+  border-radius: 1.6rem;
+  padding: 2.6rem 3.2rem 2rem;
+  width: min(92rem, 94vw);
+  max-height: 84vh;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 0 9rem rgba(0,0,0,0.65);
+}
+
+#overlay-x {
+  position: absolute;
+  top: 1.4rem;
+  right: 1.4rem;
+  width: 5.4rem;
+  height: 5.4rem;
+  border-radius: 50%;
+  font-size: 2.8rem;
+  line-height: 1;
+  color: var(--text);
+  background: #1c2736;
+  border: 1px solid var(--karte-rand);
+  cursor: pointer;
+  transition: transform 0.08s ease, background 0.15s ease;
+}
+#overlay-x:active { transform: scale(0.9); background: #26344a; }
+
+.ov-label {
+  font-size: 1.15rem;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  color: var(--text-dunkel);
+  margin-bottom: 1.4rem;
+  padding-right: 6rem;
+}
+
+.ov-inhalt {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  -webkit-user-select: text;
+  user-select: text;
+}
+
+.ov-meta { margin-top: 1.4rem; color: var(--text-dunkel); font-size: 1.15rem; min-height: 1.4rem; }
+
+.ov-wert {
+  font-size: 5.5rem;
+  font-weight: 800;
+  line-height: 1.05;
+  word-break: break-word;
+}
+.ov-zusatz { font-size: 2rem; color: var(--text-dunkel); margin-top: 1rem; }
+
+.ov-gross {
+  font-size: 2.5rem;
+  line-height: 1.4;
+  font-weight: 500;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.ov-roh { margin-top: 2rem; display: flex; flex-direction: column; gap: 0.9rem; }
+.ov-roh-zeile {
+  display: flex;
+  gap: 1.6rem;
+  font-size: 1.8rem;
+  border-bottom: 1px solid rgba(34,48,71,0.6);
+  padding-bottom: 0.7rem;
+}
+.ov-roh-key { color: var(--text-dunkel); min-width: 18rem; flex-shrink: 0; }
+.ov-roh-wert { word-break: break-word; }
+
+.ov-msg { margin: 0 0 1.6rem; max-width: 86%; }
+.ov-msg-wer {
+  font-size: 1.05rem;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--text-dunkel);
+  margin-bottom: 0.4rem;
+}
+.ov-msg-text {
+  font-size: 2.2rem;
+  line-height: 1.4;
+  padding: 1.1rem 1.6rem;
+  border-radius: 1.2rem;
+  background: #182231;
+  border: 1px solid var(--karte-rand);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.ov-user { margin-left: auto; }
+.ov-user .ov-msg-wer { text-align: right; }
+.ov-user .ov-msg-text {
+  background: rgba(124,108,240,0.16);
+  border-color: rgba(124,108,240,0.45);
+}
+.ov-leer { font-size: 2rem; color: var(--text-dunkel); }
+
 /* ---------- Fusszeile ---------- */
 
 footer {

@@ -1,6 +1,7 @@
 /* Gemma Display, reines JS ohne Framework und ohne CDN.
    Teile: Uhr, Wake Lock mit Video-Fallback, Vollbild/Kiosk,
-   WebSocket zur Gemma-Live-Bridge, Verlauf-Poll. */
+   WebSocket zur Gemma-Live-Bridge, Verlauf-Poll,
+   klickbare Kacheln mit Detail-Overlay. */
 
 "use strict";
 
@@ -31,7 +32,10 @@ const state = {
   antwortZeit: null,
   geraetName: "",
   gespraechZeit: null,
-  aktivBis: 0
+  gespraechMsgs: [],
+  gespraechDev: "",
+  aktivBis: 0,
+  kachelDaten: {}
 };
 
 /* ---------------- Uhr und Datum ---------------- */
@@ -48,13 +52,15 @@ function uhrTicken() {
 
 /* ---------------- Kacheln ---------------- */
 
-function kachel(id, wert, zusatz, zustand) {
+function kachel(id, wert, zusatz, zustand, extra) {
   const el = $(id);
   if (!el) return;
   el.querySelector(".kachel-wert").textContent = wert;
   el.querySelector(".kachel-zusatz").textContent = zusatz;
   el.classList.remove("ok", "warn", "fehler");
   if (zustand) el.classList.add(zustand);
+  state.kachelDaten[id] = { wert, zusatz, zustand: zustand || "",
+    extra: extra || null, zeit: Date.now() };
 }
 
 function badge(id, text, klasse) {
@@ -90,6 +96,133 @@ function antwortAnzeigen(text, quelle, ts) {
   state.antwortZeit = ts || Math.floor(Date.now() / 1000);
   $("antwort").textContent = text;
   $("antwort-meta").textContent = quelle + " · " + relZeit(state.antwortZeit);
+  state.kachelDaten["k-antwort"] = {
+    wert: "", zusatz: $("antwort-meta").textContent, zustand: "",
+    extra: null, zeit: Date.now()
+  };
+}
+
+/* ---------------- Detail-Overlay ---------------- */
+
+function overlayOeffnen(id) {
+  const el = $(id);
+  if (!el || $("overlay").classList.contains("offen")) return;
+  const daten = state.kachelDaten[id] || null;
+  const label = el.querySelector(".kachel-label");
+  $("overlay-label").textContent = label ? label.textContent : "";
+  const inhalt = $("overlay-inhalt");
+  inhalt.innerHTML = "";
+  let meta = "";
+
+  if (id === "k-gespraech" && state.gespraechMsgs.length) {
+    for (const m of state.gespraechMsgs) {
+      const zeile = document.createElement("div");
+      zeile.className = "ov-msg" + (m.role === "user" ? " ov-user" : "");
+      const wer = document.createElement("div");
+      wer.className = "ov-msg-wer";
+      wer.textContent = m.role === "user" ? "Kay" : "Gemma";
+      const txt = document.createElement("div");
+      txt.className = "ov-msg-text";
+      txt.textContent = m.content;
+      zeile.append(wer, txt);
+      inhalt.append(zeile);
+    }
+    meta = "Gerät " + state.gespraechDev + " · neueste unten";
+  } else if (id === "k-antwort") {
+    const txt = document.createElement("div");
+    txt.className = "ov-gross";
+    txt.textContent = state.antwortText || "Noch keine Antwort im Verlauf.";
+    inhalt.append(txt);
+    meta = state.antwortQuelle
+      ? state.antwortQuelle + (state.antwortZeit ? " · " + relZeit(state.antwortZeit) : "")
+      : "";
+  } else {
+    const wert = document.createElement("div");
+    wert.className = "ov-wert";
+    wert.textContent = daten ? daten.wert : "—";
+    inhalt.append(wert);
+    if (daten && daten.zusatz) {
+      const zusatz = document.createElement("div");
+      zusatz.className = "ov-zusatz";
+      zusatz.textContent = daten.zusatz;
+      inhalt.append(zusatz);
+    }
+    const extra = daten && daten.extra;
+    if (extra && Object.keys(extra).length) {
+      const liste = document.createElement("div");
+      liste.className = "ov-roh";
+      for (const [schluessel, wert2] of Object.entries(extra)) {
+        const zeile = document.createElement("div");
+        zeile.className = "ov-roh-zeile";
+        const kEl = document.createElement("span");
+        kEl.className = "ov-roh-key";
+        kEl.textContent = schluessel;
+        const vEl = document.createElement("span");
+        vEl.className = "ov-roh-wert";
+        vEl.textContent = (wert2 && typeof wert2 === "object")
+          ? JSON.stringify(wert2) : String(wert2);
+        zeile.append(kEl, vEl);
+        liste.append(zeile);
+      }
+      inhalt.append(liste);
+    }
+    if ((!daten) || (!daten.wert && !daten.zusatz)) {
+      const leer = document.createElement("div");
+      leer.className = "ov-leer";
+      leer.textContent = "Noch keine Daten.";
+      inhalt.append(leer);
+    }
+    if (daten && daten.zeit) {
+      meta = "Stand: " + new Date(daten.zeit).toLocaleTimeString("de-DE");
+    }
+  }
+
+  $("overlay-meta").textContent = meta;
+  const ov = $("overlay");
+  ov.classList.add("offen");
+  ov.setAttribute("aria-hidden", "false");
+  $("overlay-x").focus();
+}
+
+function overlaySchliessen() {
+  const ov = $("overlay");
+  ov.classList.remove("offen");
+  ov.setAttribute("aria-hidden", "true");
+}
+
+function kachelnKlickbarMachen() {
+  for (const k of document.querySelectorAll(".kachel, .antwort-kachel")) {
+    if (!k.id) continue;
+    k.classList.add("klickbar");
+    k.setAttribute("role", "button");
+    k.setAttribute("tabindex", "0");
+    const hinweis = document.createElement("span");
+    hinweis.className = "kachel-hinweis";
+    hinweis.setAttribute("aria-hidden", "true");
+    hinweis.textContent = "Details ›";
+    k.append(hinweis);
+    k.addEventListener("click", (ev) => {
+      ev.stopPropagation();
+      overlayOeffnen(k.id);
+    });
+    k.addEventListener("keydown", (ev) => {
+      if (ev.key === "Enter" || ev.key === " ") {
+        ev.preventDefault();
+        overlayOeffnen(k.id);
+      }
+    });
+  }
+  $("overlay-x").addEventListener("click", (ev) => {
+    ev.stopPropagation();
+    overlaySchliessen();
+  });
+  $("overlay-box").addEventListener("click", (ev) => ev.stopPropagation());
+  $("overlay").addEventListener("click", (ev) => {
+    if (ev.target === $("overlay")) overlaySchliessen();
+  });
+  document.addEventListener("keydown", (ev) => {
+    if (ev.key === "Escape") overlaySchliessen();
+  });
 }
 
 /* ---------------- WebSocket zur Bruecke ---------------- */
@@ -122,7 +255,8 @@ function wsVerbinden() {
     state.wsOnline = true;
     state.sessionBereit = false;
     badge("f-ws", "WS online", "badge-ok");
-    kachel("k-bruecke", "online", "Brücke antwortet", "ok");
+    kachel("k-bruecke", "online", "Brücke antwortet", "ok",
+      { url: "wss://" + location.host + "/gemma-live/ws", gerät: "show15" });
     orbSetzen("idle", "bereit");
     state.wsZyklusTimer = setTimeout(() => {
       try { ws.close(1000, "zyklus"); } catch (e) {}
@@ -137,7 +271,8 @@ function wsVerbinden() {
         state.sessionBereit = true;
         state.backoffSek = CFG.wsBackoffStartSek;
         kachel("k-session", "bereit", "Gemini verbunden", "ok");
-        kachel("k-bruecke", "online", "Brücke antwortet", "ok");
+        kachel("k-bruecke", "online", "Brücke antwortet", "ok",
+          { url: "wss://" + location.host + "/gemma-live/ws", gerät: "show15" });
         break;
       case "gemma":
         if (d.text) antwortAnzeigen(d.text, "live", null);
@@ -177,7 +312,8 @@ function wsNachEnde() {
   state.wsOnline = false;
   state.sessionBereit = false;
   badge("f-ws", "WS aus", "badge-aus");
-  kachel("k-bruecke", "offline", "Brücke nicht verbunden", "fehler");
+  kachel("k-bruecke", "offline", "Brücke nicht verbunden", "fehler",
+    { url: "wss://" + location.host + "/gemma-live/ws", gerät: "show15" });
   kachel("k-session", "inaktiv", "keine Session", "");
   orbSetzen(Date.now() < state.aktivBis ? "aktiv" : "aus",
     Date.now() < state.aktivBis ? "aktiv" : "offline");
@@ -189,7 +325,8 @@ function wsNaechstenVersuchPlanen() {
   const jitter = Math.round(Math.random() * 8000);
   const pause = state.backoffSek * 1000 + jitter;
   state.wsNaechsterVersuch = Date.now() + pause;
-  kachel("k-bruecke", "offline", "neuer Versuch in " + Math.round(pause / 1000) + " s", "fehler");
+  kachel("k-bruecke", "offline", "neuer Versuch in " + Math.round(pause / 1000) + " s", "fehler",
+    { backoffSek: state.backoffSek, gerät: "show15" });
   setTimeout(() => {
     state.backoffSek = Math.min(
       Math.round(state.backoffSek * 1.6), CFG.wsBackoffMaxSek);
@@ -217,6 +354,7 @@ async function verlaufHolen(dev) {
     ts: d.ts || 0,
     text: letzte ? letzte.content : "",
     msgs: msgs.length,
+    letzte10: msgs.slice(-10).map((m) => ({ role: m.role, content: m.content })),
     dev: dev
   };
 }
@@ -234,13 +372,17 @@ async function verlaufPoll() {
   const frisch = gueltige[0];
   state.geraetName = frisch.dev;
   state.gespraechZeit = frisch.ts || null;
+  state.gespraechMsgs = frisch.letzte10 || [];
+  state.gespraechDev = frisch.dev;
   const lebt = state.antwortQuelle === "live" &&
     Date.now() / 1000 - (state.antwortZeit || 0) < 600;
   if (!lebt) antwortAnzeigen(frisch.text, "verlauf", frisch.ts || null);
   kachel("k-gespraech", relZeit(frisch.ts || null) || "unbekannt",
-    frisch.msgs + " Nachrichten im Verlauf", "ok");
+    frisch.msgs + " Nachrichten im Verlauf", "ok",
+    { gerät: frisch.dev, nachrichten: frisch.msgs, ts: frisch.ts || 0 });
   kachel("k-geraet", String(frisch.dev).slice(0, 12),
-    gueltige.length + " Geräte beobachtet", "");
+    gueltige.length + " Geräte beobachtet", "",
+    { beobachtet: CFG.geraete, verlaufTs: frisch.ts || 0 });
 }
 
 /* ---------------- Verlauf/Konfig der Brücke in Kacheln ---------------- */
@@ -254,8 +396,14 @@ async function brueckeConfigHolen() {
       { cache: "no-store" });
     if (!r.ok) return;
     const c = await r.json();
-    if (c.modell) kachel("k-modell", c.modell, "aus der Brücke-Config", "");
-    if (c.stimme) kachel("k-stimme", c.stimme, "aus der Brücke-Config", "");
+    const roh = {};
+    for (const [schluessel, wert] of Object.entries(c)) {
+      if (wert === null || ["string", "number", "boolean"].includes(typeof wert)) {
+        roh[schluessel] = wert;
+      }
+    }
+    if (c.modell) kachel("k-modell", c.modell, "aus der Brücke-Config", "", roh);
+    if (c.stimme) kachel("k-stimme", c.stimme, "aus der Brücke-Config", "", roh);
   } catch (e) { /* Kachel bleibt Platzhalter */ }
 }
 
@@ -274,7 +422,8 @@ function kioskKachel() {
     : state.lockTyp === "video" ? "Video hält wach"
     : "kein Wake Lock";
   kachel("k-kiosk", voll ? "Vollbild" : "Fenster", lock,
-    state.lockTyp ? "ok" : "warn");
+    state.lockTyp ? "ok" : "warn",
+    { lockTyp: state.lockTyp || "keiner", vollbild: voll ? "ja" : "nein" });
   badge("f-voll", voll ? "Vollbild" : "kein Vollbild",
     voll ? "badge-ok" : "badge-aus");
 }
@@ -363,7 +512,11 @@ function vollbildAnfordern() {
 
 function startupPruefen() {
   const voll = !!document.fullscreenElement;
-  $("startup").classList.toggle("sichtbar", !voll);
+  const auto = location.hash === "#kiosk";
+  if (auto && !localStorage.getItem("gemma_kiosk")) {
+    localStorage.setItem("gemma_kiosk", "1");
+  }
+  $("startup").classList.toggle("sichtbar", !voll && !auto);
   if (!voll && !localStorage.getItem("gemma_kiosk")) {
     $("startup-hinweis").textContent =
       "Erster Start: mit Kiosk starten merkt sich diese Seite den Modus.";
@@ -410,13 +563,15 @@ setInterval(() => {
   kachel("k-aktiv",
     Date.now() < state.aktivBis ? "arbeitet" : "ruht",
     Date.now() < state.aktivBis ? "Werkzeug oder Antwort läuft" : "kein Vorgang",
-    Date.now() < state.aktivBis ? "warn" : "");
+    Date.now() < state.aktivBis ? "warn" : "",
+    { aktivBis: state.aktivBis ? new Date(state.aktivBis).toLocaleTimeString("de-DE") : "—" });
 }, 10000);
 
 uhrTicken();
 orbUhr();
 startupPruefen();
 lockStarten();
+kachelnKlickbarMachen();
 wsVerbinden();
 verlaufPoll();
 brueckeConfigHolen();
