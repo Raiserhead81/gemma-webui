@@ -65,22 +65,17 @@
           <div id="musik-titel" class="kachel-wert">—</div>
           <div id="musik-kuenstler" class="kachel-zusatz">—</div>
         </div>
-      </div>
-      <div class="musik-tasten">
-        <button class="taste" id="m-vorher" type="button" aria-label="Vorheriger Titel">&#9198;</button>
-        <button class="taste taste-gross" id="m-play" type="button" aria-label="Abspielen oder Pause">&#9654;</button>
-        <button class="taste" id="m-naechster" type="button" aria-label="Nächster Titel">&#9197;</button>
+        <div class="musik-tasten">
+          <button class="taste" id="m-vorher" type="button" aria-label="Vorheriger Titel">&#9198;</button>
+          <button class="taste taste-gross" id="m-play" type="button" aria-label="Abspielen oder Pause">&#9654;</button>
+          <button class="taste" id="m-naechster" type="button" aria-label="Nächster Titel">&#9197;</button>
+        </div>
       </div>
     </div>
 
     <div class="kachel" id="k-vital">
       <div class="kachel-label">Vitaldaten</div>
-      <div class="vital-raster">
-        <div class="vital-wert"><span id="v-puls">—</span><small>Puls</small></div>
-        <div class="vital-wert"><span id="v-schritte">—</span><small>Schritte</small></div>
-        <div class="vital-wert"><span id="v-schlaf">—</span><small>Schlaf</small></div>
-        <div class="vital-wert"><span id="v-ready">—</span><small>Fit</small></div>
-      </div>
+      <div id="vital-raster" class="vital-raster"></div>
       <div id="v-alter" class="kachel-zusatz"></div>
     </div>
 
@@ -94,15 +89,21 @@
       <div id="termin-liste" class="termin-liste"><div class="kachel-zusatz">—</div></div>
     </div>
 
+    <!-- Regenradar: Hero-Band. Dunkles Karten-Mosaik (CARTO) mit
+         Lübeck-Marker, animierte Radar-Frames laufen darüber. -->
+    <div class="kachel radar-kachel" id="k-radar">
+      <div class="kachel-label">Regenradar <span class="kachel-label-zusatz">Lübeck · letzte 90 Minuten · live</span></div>
+      <div id="radar-karte" class="radar-karte">
+        <div id="radar-mosaik" class="radar-mosaik"></div>
+        <div id="radar-marker" class="radar-marker"><span class="radar-marker-punkt"></span>Lübeck</div>
+        <div class="radar-quelle">Karte © Esri · Radar © Rainviewer</div>
+      </div>
+      <div id="radar-kachel-hinweis" class="radar-hinweis" hidden></div>
+    </div>
+
     <div class="kachel wetter-kachel" id="k-wetter">
       <div class="kachel-label">Wetter <span class="kachel-label-zusatz">Lübeck · 3 Tage · antippen für Radar</span></div>
       <div id="wetter-tage" class="wetter-tage"><div class="kachel-zusatz">—</div></div>
-    </div>
-
-    <div class="kachel radar-kachel" id="k-radar">
-      <div class="kachel-label">Regenradar <span class="kachel-label-zusatz">Lübeck · letzte 90 Min · antippen für Trend</span></div>
-      <img id="radar-kachel-bild" class="radar-kachel-bild" alt="Regenradar">
-      <div id="radar-kachel-hinweis" class="kachel-zusatz" hidden></div>
     </div>
 
     <div class="kachel" id="k-welt">
@@ -110,11 +111,6 @@
       <div id="welt-kopf" class="kachel-wert">—</div>
       <div id="welt-vital" class="kachel-zusatz">—</div>
       <div id="welt-alter" class="kachel-zusatz"></div>
-    </div>
-
-    <div class="kachel" id="k-news">
-      <div class="kachel-label">AI News</div>
-      <div id="news-liste" class="news-liste"><div class="kachel-zusatz">—</div></div>
     </div>
   </section>
 </main>

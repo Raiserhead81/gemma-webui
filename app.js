@@ -1060,14 +1060,50 @@ function bilderKnopfSetzen() {
 
 function kachelVital(v) {
   state.kachelDaten["k-vital"] = v || null;
-  const zahl = (x, nach) => (typeof x === "number" && isFinite(x))
-    ? Math.round(x) + (nach || "") : "—";
-  $("v-puls").textContent = zahl(v && v.puls);
-  $("v-schritte").textContent = zahl(v && v.schritte);
-  $("v-schlaf").textContent = zahl(v && v.schlaf);
-  $("v-ready").textContent = zahl(v && v.readiness);
-  $("v-alter").textContent = (v && v.datum && v.datum !== heuteStr())
-    ? "Stand: " + v.datum : (v && v.puls != null ? "von heute" : "noch keine Werte von der Uhr");
+  const box = $("vital-raster");
+  if (!box) return;
+  box.innerHTML = "";
+  const felder = [
+    ["puls", "Puls"], ["schritte", "Schritte"],
+    ["schlaf", "Schlaf"], ["readiness", "Fit"]
+  ];
+  const daten = felder
+    .map(([key, name]) => ({
+      name,
+      wert: (v && typeof v[key] === "number" && isFinite(v[key]))
+        ? Math.round(v[key]) : null
+    }))
+    .filter((f) => f.wert !== null);
+  if (!daten.length) {
+    /* Nie Daten oder nichts Greifbares: ein ruhiger Satz statt Striche */
+    const leer = document.createElement("div");
+    leer.className = "kachel-zusatz";
+    leer.textContent = "Die Uhr meldet sich, sobald neue Werte da sind.";
+    box.append(leer);
+    $("v-alter").textContent = "";
+    return;
+  }
+  for (const f of daten) {
+    const zelle = document.createElement("div");
+    zelle.className = "vital-wert";
+    const zahl = document.createElement("span");
+    zahl.textContent = f.wert;
+    const name = document.createElement("small");
+    name.textContent = f.name;
+    zelle.append(zahl, name);
+    box.append(zelle);
+  }
+  $("v-alter").textContent = vitalStand(v);
+}
+
+/* "von heute" oder ehrlich: "Stand: 6. Okt." */
+function vitalStand(v) {
+  if (!v || !v.datum) return "";
+  if (v.datum === heuteStr()) return "von heute";
+  const teile = String(v.datum).split("-");
+  const d = new Date(Number(teile[0]), Number(teile[1]) - 1, Number(teile[2]));
+  if (isNaN(d.getTime())) return "Stand: " + v.datum;
+  return "Stand: " + d.toLocaleDateString("de-DE", { day: "numeric", month: "short" });
 }
 
 function heuteStr() {
@@ -1144,17 +1180,6 @@ function terminWann(t) {
   else name = TAGE_KURZ[d.getDay()] + " " + d.getDate() + "." + (d.getMonth() + 1) + ".";
   if (t.ganztaegig) return name;
   return name + (t.zeit ? ", " + t.zeit : "");
-}
-
-function newsAlter(iso) {
-  const d = new Date(iso);
-  if (isNaN(d)) return "";
-  const min = Math.round((Date.now() - d.getTime()) / 60000);
-  if (min < 1) return "gerade eben";
-  if (min < 60) return "vor " + min + " Min";
-  const std = Math.floor(min / 60);
-  if (std < 24) return "vor " + std + " Std";
-  return "vor " + Math.floor(std / 24) + " Tagen";
 }
 
 function morgenStr() {
@@ -1305,14 +1330,13 @@ function kachelWetter(d) {
   state.kachelDaten["k-wetter"] = d;
 }
 
-/* ---------------- gemivo-Welt + AI News ---------------- */
+/* ---------------- gemivo-Welt ---------------- */
 
 function weltHolen(d) {
   /* Welt-Daten stecken im /status (bruecke, 60s-Cache) */
   if (!d || !d.welt || !d.welt.apps) return;
   state.welt = d.welt;
   kachelWelt(d.welt);
-  kachelNews(d.welt.news);
 }
 
 function kachelWelt(d) {
@@ -1332,27 +1356,17 @@ function kachelWelt(d) {
   state.kachelDaten["k-welt"] = d;
 }
 
-function kachelNews(news) {
-  const box = $("news-liste");
-  box.innerHTML = "";
-  if (!news || !news.length) {
-    const leer = document.createElement("div");
-    leer.className = "kachel-zusatz";
-    leer.textContent = "gerade nichts Neues";
-    box.append(leer);
-    return;
-  }
-  for (const n of news) {
-    const zeile = document.createElement("div");
-    zeile.className = "news-zeile";
-    zeile.textContent = n.titel;
-    box.append(zeile);
-  }
+/* ---------------- Regenradar (Rainviewer über dunkler Karte) ----------------
+   Die Wand-Kachel zeigt ein statisches Basemap-Mosaik (CARTO dark, wird vom
+   Browser gecacht) mit Lübeck-Marker, darüber die animierten Radar-Frames.
+   Frames und Timers teilt sie sich mit dem Radar im Wetter-Overlay. */
+
+const RADAR_Z = 6, RADAR_X = 33, RADAR_Y = 20;          /* Lübeck-Kachel (Overlay) */
+const RADAR_LAT = 53.8655, RADAR_LON = 10.6867;         /* Marker */
+
+function radarFrameUrl(basis, zx, zy) {
+  return basis + "/256/" + RADAR_Z + "/" + zx + "/" + zy + "/2/1_1.png";
 }
-
-/* ---------------- Regenradar (Rainviewer, Rotation) ---------------- */
-
-const RADAR_Z = 6, RADAR_X = 33, RADAR_Y = 20;   /* Lübeck */
 
 async function radarFramesHolen() {
   try {
@@ -1360,20 +1374,126 @@ async function radarFramesHolen() {
       { cache: "no-store" });
     const d = await r.json();
     const past = (d.radar && d.radar.past) || [];
-    state.radar.frames = past.slice(-8).map((f) =>
-      d.host + f.path + "/256/" + RADAR_Z + "/" + RADAR_X + "/" + RADAR_Y + "/2/1_1.png");
+    state.radar.frames = past.slice(-8).map((f) => d.host + f.path);
+    radarKarteBauen();
   } catch (e) {
     state.radar.frames = [];
   }
 }
 
+/* Web-Mercator: Längen-/Breitengrad → Pixel in der Karten-Welt */
+function radarWeltPx(lat, lon, z) {
+  const n = Math.pow(2, z) * 256;
+  const rad = lat * Math.PI / 180;
+  return {
+    x: (lon + 180) / 360 * n,
+    y: (1 - Math.log(Math.tan(rad) + 1 / Math.cos(rad)) / Math.PI) / 2 * n
+  };
+}
+
+/* Mosaik + Radar-Ebenen + Marker auf die aktuelle Kachelgröße legen.
+   Lübeck liegt exakt in der Mitte, die Kacheln decken die ganze Fläche. */
+function radarKarteBauen() {
+  const karte = $("radar-karte");
+  const mosaik = $("radar-mosaik");
+  const marker = $("radar-marker");
+  if (!karte || !mosaik) return;
+  const w = karte.clientWidth, h = karte.clientHeight;
+  if (!w || !h) return;
+  mosaik.innerHTML = "";
+  mosaik.style.width = w + "px";
+  mosaik.style.height = h + "px";
+  mosaik.style.left = "0px";
+  mosaik.style.top = "0px";
+
+  const zentrum = radarWeltPx(RADAR_LAT, RADAR_LON, RADAR_Z);
+  const linksWelt = zentrum.x - w / 2, obenWelt = zentrum.y - h / 2;
+  const ersteSpalte = Math.floor(linksWelt / 256), letzteSpalte = Math.floor((linksWelt + w) / 256);
+  const ersteZeile = Math.floor(obenWelt / 256), letzteZeile = Math.floor((obenWelt + h) / 256);
+  const kachelPosition = (zx, zy) => ({
+    links: zx * 256 - linksWelt,
+    oben: zy * 256 - obenWelt
+  });
+
+  /* dunkles Basemap-Mosaik (Esri Dark Gray, statisch, Browser-Cache)
+     + Referenz-Layer mit Stadt-Labels (Hamburg, Bremen, Ostsee …) */
+  const esri = (dienst, zx, zy) =>
+    "https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/" + dienst +
+    "/MapServer/tile/" + RADAR_Z + "/" + zy + "/" + zx;
+  for (let zy = ersteZeile; zy <= letzteZeile; zy++) {
+    for (let zx = ersteSpalte; zx <= letzteSpalte; zx++) {
+      const p = kachelPosition(zx, zy);
+      const img = document.createElement("img");
+      img.className = "radar-karte-tile";
+      img.alt = "";
+      img.loading = "lazy";
+      img.style.left = p.links + "px";
+      img.style.top = p.oben + "px";
+      img.src = esri("World_Dark_Gray_Base", zx, zy);
+      mosaik.append(img);
+      const namen = document.createElement("img");
+      namen.className = "radar-karte-labels";
+      namen.alt = "";
+      namen.loading = "lazy";
+      namen.style.left = p.links + "px";
+      namen.style.top = p.oben + "px";
+      namen.src = esri("World_Dark_Gray_Reference", zx, zy);
+      mosaik.append(namen);
+    }
+  }
+
+  /* Radar-Ebenen: ein Layer je Frame, Kacheln lazy beim ersten Anzeigen */
+  const ebenen = document.createElement("div");
+  ebenen.className = "radar-ebenen";
+  ebenen.style.width = w + "px";
+  ebenen.style.height = h + "px";
+  state.radar.ebenen = state.radar.frames.map((basis) => {
+    const ebene = document.createElement("div");
+    ebene.className = "radar-ebene";
+    for (let zy = ersteZeile; zy <= letzteZeile; zy++) {
+      for (let zx = ersteSpalte; zx <= letzteSpalte; zx++) {
+        const img = document.createElement("img");
+        img.alt = "";
+        const p = kachelPosition(zx, zy);
+        img.style.left = p.links + "px";
+        img.style.top = p.oben + "px";
+        img.dataset.src = radarFrameUrl(basis, ((zx % 64) + 64) % 64, zy);
+        img.hidden = true;
+        ebene.append(img);
+      }
+    }
+    ebenen.append(ebene);
+    return ebene;
+  });
+  mosaik.append(ebenen);
+
+  /* Marker an der echten mercator-Position: exakt die Mitte = Lübeck */
+  if (marker) {
+    marker.style.left = (w / 2) + "px";
+    marker.style.top = (h / 2) + "px";
+  }
+  radarDrehen();
+}
+
 function radarDrehen() {
   if (!state.radar.frames.length) return;
-  const frame = state.radar.frames[state.radar.pos % state.radar.frames.length];
+  const pos = state.radar.pos % state.radar.frames.length;
+  const basis = state.radar.frames[pos];
+  /* Radar im Wetter-Overlay (einzelne Lübeck-Kachel, wie gehabt) */
   const overlay = $("radar-bild");
-  if (overlay) overlay.src = frame;
-  const kachel = $("radar-kachel-bild");
-  if (kachel) kachel.src = frame;
+  if (overlay) overlay.src = radarFrameUrl(basis, RADAR_X, RADAR_Y);
+  /* Wand: Layer-Sichtbarkeit umschalten, Kacheln beim ersten Mal laden */
+  (state.radar.ebenen || []).forEach((ebene, i) => {
+    if (!ebene) return;
+    const aktiv = i === pos;
+    ebene.classList.toggle("aktiv", aktiv);
+    if (aktiv && !ebene.dataset.geladen) {
+      ebene.querySelectorAll("img").forEach((img) => {
+        if (!img.src) { img.src = img.dataset.src; img.hidden = false; }
+      });
+      ebene.dataset.geladen = "1";
+    }
+  });
   state.radar.pos++;
 }
 
@@ -1393,6 +1513,7 @@ function radarStart() {
     return;
   }
   radarHinweisSetzen(null);
+  radarKarteBauen();
   radarFramesHolen().then(() => {
     radarDrehen();
     state.radar.rot = setInterval(radarDrehen, 900);
@@ -1403,15 +1524,15 @@ function radarStart() {
 /* Radar-Kachel auf der Wand: gleiche Frames und Timers wie im Overlay.
    Bilder aus: Hinweis statt Radar, es wird nichts geladen. */
 function radarKachelStart() {
-  const kachel = $("radar-kachel-bild");
-  if (!kachel) return;
+  const karte = $("radar-karte");
+  if (!karte) return;
   if (!state.bilder) {
     radarStop();
-    kachel.hidden = true;
+    karte.hidden = true;
     radarHinweisSetzen("Bilder sind aus - den Bilder-Knopf antippen");
     return;
   }
-  kachel.hidden = false;
+  karte.hidden = false;
   radarStart();
 }
 
@@ -1555,26 +1676,6 @@ function overlayOeffnen(id) {
     if (v.disk_prozent != null) zeileInOverlay(inhalt, "Platte belegt", v.disk_prozent + " %");
     if (v.ram_prozent != null) zeileInOverlay(inhalt, "RAM belegt", v.ram_prozent + " %");
     if (v.cert_tage != null) zeileInOverlay(inhalt, "Nächstes Zertifikat läuft in", v.cert_tage + " Tagen (" + (v.cert_host || "") + ")");
-  } else if (id === "k-news") {
-    const news = (state.welt && state.welt.news) || [];
-    if (!news.length) {
-      const leer = document.createElement("div");
-      leer.className = "ov-leer";
-      leer.textContent = "Gerade nichts Neues.";
-      inhalt.append(leer);
-    }
-    for (const n of news) {
-      const zeile = document.createElement("div");
-      zeile.className = "ov-msg";
-      const titel = document.createElement("div");
-      titel.className = "ov-msg-text";
-      titel.textContent = n.titel;
-      const meta = document.createElement("div");
-      meta.className = "ov-msg-wer";
-      meta.textContent = (n.quelle ? n.quelle + " · " : "") + newsAlter(n.zeit);
-      zeile.append(titel, meta);
-      inhalt.append(zeile);
-    }
   } else if (id === "k-musik" && daten) {
     zeileInOverlay(inhalt, "Titel", daten.titel);
     zeileInOverlay(inhalt, "Von", daten.kuenstler);
@@ -1889,6 +1990,13 @@ statusHolen();
 wetterHolen();
 if (ZEIGE_GESPRAECH) verlaufPoll();
 radarKachelStart();
+let radarGroesseTimer = null;
+window.addEventListener("resize", () => {
+  clearTimeout(radarGroesseTimer);
+  radarGroesseTimer = setTimeout(() => {
+    if (state.bilder) radarKarteBauen();
+  }, 250);
+});
 
 /* Prüfhaken (unsichtbar, für automatische Tests): */
 window.gemmaIntern = {
