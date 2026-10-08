@@ -105,18 +105,42 @@ function orbSetzen(zustand, text) {
   $("orb-status").textContent = text;
 }
 
+/* ---------------- Gesprächs-Kachel: nur anlegen, wenn gewünscht ----------------
+   config.js: zeige_gespraech: true → Verlauf-Kachel wieder sichtbar.
+   Ohne das Feld (oder false) bleibt sie weg, die übrigen Kacheln
+   übernehmen den Platz (gleicher Kollaps wie beim Foto-Schalter). */
+
+const ZEIGE_GESPRAECH = !!CFG.zeige_gespraech;
+
+function gespraechKachelAufbauen() {
+  if (!ZEIGE_GESPRAECH) return;
+  const kachel = document.createElement("section");
+  kachel.className = "gespraech-kachel";
+  kachel.id = "k-gespraech";
+  const label = document.createElement("div");
+  label.className = "kachel-label";
+  label.textContent = "Gespräch";
+  const chat = document.createElement("div");
+  chat.className = "chat";
+  chat.id = "chat";
+  kachel.append(label, chat);
+  $("haupt").prepend(kachel);
+}
+
 function chatLeeren() {
   state.chat = [];
-  $("chat").innerHTML = "";
+  const box = $("chat");
+  if (box) box.innerHTML = "";
 }
 
 function chatAnhaengen(wer, text) {
   if (!text) return;
+  const box = $("chat");
   const letzte = state.chat[state.chat.length - 1];
   if (letzte && letzte.wer === wer && Date.now() - letzte.zeit < 15000) {
     letzte.text += text;
     letzte.zeit = Date.now();
-    const box = $("chat");
+    if (!box) return;
     const zeile = box.lastElementChild;
     if (zeile) zeile.querySelector(".chat-text").textContent = letzte.text;
     box.scrollTop = box.scrollHeight;
@@ -124,7 +148,7 @@ function chatAnhaengen(wer, text) {
   }
   state.chat.push({ wer, text, zeit: Date.now() });
   if (state.chat.length > 40) state.chat.splice(0, state.chat.length - 40);
-  const box = $("chat");
+  if (!box) return;
   const zeile = document.createElement("div");
   zeile.className = "chat-zeile" + (wer === "Kay" ? " chat-kay" : " chat-gemma");
   const name = document.createElement("span");
@@ -1024,6 +1048,7 @@ function bilderSchalten() {
   localStorage.setItem("gemma_bilder", state.bilder ? "an" : "aus");
   bilderKnopfSetzen();
   kachelMusik(state.kachelDaten["k-musik"]);
+  radarKachelStart();   /* aus: Hinweis, kein Laden; an: Radar wieder */
 }
 
 function bilderKnopfSetzen() {
@@ -1343,25 +1368,51 @@ async function radarFramesHolen() {
 }
 
 function radarDrehen() {
-  const el = $("radar-bild");
-  if (!el || !state.radar.frames.length) return;
-  el.src = state.radar.frames[state.radar.pos % state.radar.frames.length];
+  if (!state.radar.frames.length) return;
+  const frame = state.radar.frames[state.radar.pos % state.radar.frames.length];
+  const overlay = $("radar-bild");
+  if (overlay) overlay.src = frame;
+  const kachel = $("radar-kachel-bild");
+  if (kachel) kachel.src = frame;
   state.radar.pos++;
+}
+
+function radarHinweisSetzen(text) {
+  for (const id of ["radar-hinweis", "radar-kachel-hinweis"]) {
+    const el = $(id);
+    if (!el) continue;
+    if (text) { el.textContent = text; el.hidden = false; }
+    else el.hidden = true;
+  }
 }
 
 function radarStart() {
   radarStop();
   if (!state.bilder) {
-    $("radar-hinweis").textContent = "Bilder sind aus - den Bilder-Knopf antippen";
-    $("radar-hinweis").hidden = false;
+    radarHinweisSetzen("Bilder sind aus - den Bilder-Knopf antippen");
     return;
   }
-  $("radar-hinweis").hidden = true;
+  radarHinweisSetzen(null);
   radarFramesHolen().then(() => {
     radarDrehen();
     state.radar.rot = setInterval(radarDrehen, 900);
   });
   state.radar.liste = setInterval(radarFramesHolen, 300000);
+}
+
+/* Radar-Kachel auf der Wand: gleiche Frames und Timers wie im Overlay.
+   Bilder aus: Hinweis statt Radar, es wird nichts geladen. */
+function radarKachelStart() {
+  const kachel = $("radar-kachel-bild");
+  if (!kachel) return;
+  if (!state.bilder) {
+    radarStop();
+    kachel.hidden = true;
+    radarHinweisSetzen("Bilder sind aus - den Bilder-Knopf antippen");
+    return;
+  }
+  kachel.hidden = false;
+  radarStart();
 }
 
 function radarStop() {
@@ -1384,7 +1435,7 @@ async function verlaufHolen(dev) {
 }
 
 async function verlaufPoll() {
-  if (!CFG.token || !CFG.geraete.length || state.chat.length) return;
+  if (!ZEIGE_GESPRAECH || !CFG.token || !CFG.geraete.length || state.chat.length) return;
   const ergebnisse = await Promise.all(
     CFG.geraete.map((g) => verlaufHolen(g).catch(() => null)));
   const gueltige = ergebnisse.filter((e) => e && e.msgs.length);
@@ -1397,6 +1448,13 @@ async function verlaufPoll() {
 /* ---------------- Detail-Overlay ---------------- */
 
 function overlayOeffnen(id) {
+  /* Radar-Kachel: das bestehende Wetter-Overlay, direkt beim Radar */
+  if (id === "k-radar") {
+    overlayOeffnen("k-wetter");
+    const radar = $("radar-bild");
+    if (radar) radar.scrollIntoView({ block: "nearest" });
+    return;
+  }
   const el = $(id);
   if (!el || $("overlay").classList.contains("offen")) return;
   const daten = state.kachelDaten[id] || null;
@@ -1575,6 +1633,7 @@ function overlaySchliessen() {
   ov.classList.remove("offen");
   ov.setAttribute("aria-hidden", "true");
   radarStop();
+  radarKachelStart();   /* Radar-Kachel auf der Wand läuft weiter */
 }
 
 function kachelnKlickbarMachen() {
@@ -1810,6 +1869,8 @@ $("tippen-form").addEventListener("submit", (ev) => {
 uhrTicken();
 orbTakt();
 bilderKnopfSetzen();
+gespraechKachelAufbauen();
+$("haupt").classList.toggle("ohne-gespraech", !ZEIGE_GESPRAECH);
 fotoKnopfSetzen();
 tonAnzeige();
 $("haupt").classList.toggle("ohne-fotos", !state.fotos);
@@ -1820,13 +1881,14 @@ setInterval(wiedergabeTakt, 250);
 setInterval(wachenTakt, 2000);
 setInterval(statusHolen, Math.max(15, CFG.statusSek) * 1000);
 setInterval(wetterHolen, 600000);
-setInterval(verlaufPoll, 30000);
+if (ZEIGE_GESPRAECH) setInterval(verlaufPoll, 30000);
 startupPruefen();
 lockStarten();
 kachelnKlickbarMachen();
 statusHolen();
 wetterHolen();
-verlaufPoll();
+if (ZEIGE_GESPRAECH) verlaufPoll();
+radarKachelStart();
 
 /* Prüfhaken (unsichtbar, für automatische Tests): */
 window.gemmaIntern = {

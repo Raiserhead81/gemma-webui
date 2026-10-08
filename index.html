@@ -48,10 +48,8 @@
 </header>
 
 <main id="haupt">
-  <section class="gespraech-kachel" id="k-gespraech">
-    <div class="kachel-label">Gespräch</div>
-    <div id="chat" class="chat"></div>
-  </section>
+  <!-- Gesprächs-Kachel wird von app.js nur angelegt, wenn
+       config.js zeige_gespraech: true setzt (Standard: weg). -->
 
   <section class="foto-flaeche" id="k-fotos">
     <img id="foto-bild" class="foto-bild" alt="Foto">
@@ -99,6 +97,12 @@
     <div class="kachel wetter-kachel" id="k-wetter">
       <div class="kachel-label">Wetter <span class="kachel-label-zusatz">Lübeck · 3 Tage · antippen für Radar</span></div>
       <div id="wetter-tage" class="wetter-tage"><div class="kachel-zusatz">—</div></div>
+    </div>
+
+    <div class="kachel radar-kachel" id="k-radar">
+      <div class="kachel-label">Regenradar <span class="kachel-label-zusatz">Lübeck · letzte 90 Min · antippen für Trend</span></div>
+      <img id="radar-kachel-bild" class="radar-kachel-bild" alt="Regenradar">
+      <div id="radar-kachel-hinweis" class="kachel-zusatz" hidden></div>
     </div>
 
     <div class="kachel" id="k-welt">

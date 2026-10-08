@@ -32,6 +32,13 @@ Zusätzlich pollt die UI /gemma-live/verlauf/<geraet>.json (read-only Alias auf
 die Sitzungsdateien der Brücke, token-geschützt) und zeigt die letzte
 assistant-Antwort des frischesten Geräts.
 
+Die Gesprächs-Kachel ist standardmäßig ausgeblendet (`zeige_gespraech` fehlt
+oder ist `false` in config.js): Kachel und Verlauf-Polling laufen dann gar
+nicht, die übrigen Kacheln übernehmen den Platz. Mit `zeige_gespraech: true`
+ist der Verlauf wieder sichtbar. Neu ist außerdem die Regenradar-Kachel auf
+der Wand (gleicher Rainviewer-Loop wie im Wetter-Overlay, antippen öffnet das
+Wetter-Overlay direkt beim Radar).
+
 ## Server-Setup (gemivo)
 
 nginx vhost: /etc/nginx/sites-enabled/gemma.gemivo.de.conf
