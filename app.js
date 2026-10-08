@@ -935,7 +935,7 @@ async function statusHolen() {
   p.set("t", Date.now());
   let d;
   try {
-    const r = await fetch("/gemma-live/status?" + p.toString(),
+    const r = await fetch(location.origin + "/gemma-live/status?" + p.toString(),
       { cache: "no-store" });
     if (!r.ok) return;
     d = await r.json();
@@ -1197,7 +1197,7 @@ async function musikAktion(aktion) {
   p.set("aktion", aktion);
   p.set("t", Date.now());
   try {
-    const r = await fetch("/gemma-live/status?" + p.toString(),
+    const r = await fetch(location.origin + "/gemma-live/status?" + p.toString(),
       { cache: "no-store" });
     if (r.ok) {
       const d = await r.json();
@@ -1215,7 +1215,7 @@ async function klangSchalten() {
   p.set("aktion", ziel);
   p.set("t", Date.now());
   try {
-    const r = await fetch("/gemma-live/status?" + p.toString(), { cache: "no-store" });
+    const r = await fetch(location.origin + "/gemma-live/status?" + p.toString(), { cache: "no-store" });
     if (r.ok) {
       const d = await r.json();
       if (d && d.klang && d.klang.ziel) {
@@ -1547,7 +1547,7 @@ async function verlaufHolen(dev) {
   const p = new URLSearchParams();
   p.set("token", CFG.token);
   p.set("t", Date.now());
-  const r = await fetch("/gemma-live/verlauf/" + encodeURIComponent(dev) +
+  const r = await fetch(location.origin + "/gemma-live/verlauf/" + encodeURIComponent(dev) +
     ".json?" + p.toString(), { cache: "no-store" });
   if (!r.ok) return null;
   const d = await r.json();
