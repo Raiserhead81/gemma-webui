@@ -58,17 +58,19 @@
 
   <section class="raster">
     <div class="kachel" id="k-musik">
-      <div class="kachel-label">Musik</div>
+      <div class="musik-kopf">
+        <div class="kachel-label">Musik</div>
+        <div class="musik-tasten">
+          <button class="taste" id="m-vorher" type="button" aria-label="Vorheriger Titel">&#9198;</button>
+          <button class="taste taste-gross" id="m-play" type="button" aria-label="Abspielen oder Pause">&#9654;</button>
+          <button class="taste" id="m-naechster" type="button" aria-label="Nächster Titel">&#9197;</button>
+        </div>
+      </div>
       <div class="musik-zeile">
         <img id="musik-cover" class="musik-cover" alt="" hidden>
         <div class="musik-text">
           <div id="musik-titel" class="kachel-wert">—</div>
           <div id="musik-kuenstler" class="kachel-zusatz">—</div>
-        </div>
-        <div class="musik-tasten">
-          <button class="taste" id="m-vorher" type="button" aria-label="Vorheriger Titel">&#9198;</button>
-          <button class="taste taste-gross" id="m-play" type="button" aria-label="Abspielen oder Pause">&#9654;</button>
-          <button class="taste" id="m-naechster" type="button" aria-label="Nächster Titel">&#9197;</button>
         </div>
       </div>
     </div>

@@ -288,23 +288,35 @@ main {
   color: #3a4a66;
 }
 
-/* Musik: Cover + Titel links, Tasten rechts - passt in eine Zeile */
+/* Musik: Tasten kompakt oben rechts neben dem Label, darunter
+   Cover + Titel. Passt so sicher in die schmale 4er-Reihe. */
 
+.musik-kopf {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 0.2rem;
+}
+.musik-kopf .kachel-label { margin-bottom: 0; }
 .musik-zeile {
   display: flex;
   align-items: center;
-  gap: 1.2rem;
-  min-height: 5.6rem;
+  gap: 1rem;
 }
 .musik-cover {
-  width: 5.6rem;
-  height: 5.6rem;
-  border-radius: 0.8rem;
+  width: 3.4rem;
+  height: 3.4rem;
+  border-radius: 0.6rem;
   object-fit: cover;
   background: #0d1420;
   flex: none;
 }
 .musik-text { min-width: 0; flex: 1; }
+.musik-text .kachel-wert {
+  font-size: 2.2rem;
+  line-height: 1.05;
+}
 .musik-text .kachel-wert,
 .musik-text .kachel-zusatz {
   white-space: nowrap;
@@ -314,26 +326,29 @@ main {
 .musik-tasten {
   display: flex;
   align-items: center;
-  gap: 1rem;
-  margin-left: auto;
+  gap: 0.7rem;
   flex: none;
 }
 .taste {
-  width: 4.2rem;
-  height: 4.2rem;
+  width: 2.8rem;
+  height: 2.8rem;
   border-radius: 50%;
   border: 1px solid var(--karte-rand);
   background: rgba(124,108,240,0.14);
   color: var(--text);
-  font-size: 1.7rem;
+  font-size: 1.2rem;
   cursor: pointer;
   line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
 }
 .taste:active { background: rgba(124,108,240,0.35); }
 .taste-gross {
-  width: 5.4rem;
-  height: 5.4rem;
-  font-size: 2.2rem;
+  width: 3.8rem;
+  height: 3.8rem;
+  font-size: 1.5rem;
   background: linear-gradient(135deg, var(--akzent), #5a4ad0);
   border: 0;
 }
