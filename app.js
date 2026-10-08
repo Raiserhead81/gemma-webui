@@ -405,7 +405,51 @@ function spieltGerade() {
    Sichtbar-Werden und per Heartbeat - jeder Neustart wird mit Uhrzeit
    im Fuß-Zähler sichtbar gemacht. */
 
+const SILK = /silk/i.test(navigator.userAgent);
+const SILK_MEDIA = "/media.mp3";
+let silkAudio = null;
+
+/* ---------- Silk-Wache (Mechanik nach DaGammla/keep-silk-open, MIT) -------
+   Stille MP3, jede Minute neu geladen (Fire OS haelt den Tab bei aktiver
+   Wiedergabe offen), startet stumm und wird bei der ersten Beruehrung
+   unmuetig (unsichtbar klein). Nur bei Silk-UA aktiv; sonst laufen
+   Oszillator-/Video-Wache. Selbst implementiert statt fremdes Script. */
+function silkWacheStarten() {
+  if (!SILK || silkAudio) return;
+  try {
+    const el = document.createElement("audio");
+    el.muted = true;
+    el.autoplay = true;
+    el.setAttribute("playsinline", "");
+    el.dataset.keep = "1";
+    el.src = SILK_MEDIA + "?q=" + Date.now();
+    el.onended = () => {
+      el.src = SILK_MEDIA + "?q=" + Date.now();
+      el.currentTime = 0;
+      const p = el.play();
+      if (p && p.catch) p.catch(() => {});
+    };
+    document.body.appendChild(el);
+    const haerbar = () => {
+      if (!el.muted) return;
+      el.muted = false;
+      el.src = SILK_MEDIA + "?q=" + Date.now();
+      const p = el.play();
+      if (p && p.catch) p.catch(() => {});
+    };
+    for (const ev of ["keydown", "pointerdown", "click"]) {
+      document.addEventListener(ev, haerbar, { once: false });
+    }
+    const p = el.play();
+    if (p && p.catch) p.catch(() => {});
+    silkAudio = el;
+  } catch (e) { silkAudio = null; }
+}
+
 function audioWacheStarten() {
+  /* Auf Kays Silk ist die Silk-Wache die ALLEINIGE Audio-Wache - hier
+     keinen eigenen Oszillator starten (Doppel-Audio). */
+  if (SILK) { silkWacheStarten(); return; }
   if (state.wachen) {
     if (state.wachen.state === "suspended") {
       state.wachen.resume().catch(() => {});
@@ -464,18 +508,29 @@ function wachenTakt() {
   }
   state.wachVideoLebt = videoLebt;
 
-  /* Sichtbarer Nachweis im Fuss */
+  /* Sichtbarer Nachweis im Fuss. Auf Silk zeigt er "wach: Silk-Ton",
+     sobald die stille MP3 tatsächlich spielt. */
   if ($("fuss-hinweis") && Date.now() >= state.hinweisBis) {
-    if (state.wachSeit && (audioLebt || videoLebt)) {
+    const keep = document.querySelector('audio[data-keep="1"]');
+    const keepLebt = !!SILK && !!keep && !keep.paused;
+    if (SILK && keepLebt && !state.wachSeit) {
+      state.wachSeit = Date.now();
+    }
+    if (SILK && !keepLebt && state.wachSeit) {
+      state.wachSeit = 0;               /* Wache weg -> Zaehler neutral */
+    }
+    if (state.wachSeit && (audioLebt || videoLebt || keepLebt)) {
       const seit = new Date(state.wachSeit).toLocaleTimeString("de-DE",
         { hour: "2-digit", minute: "2-digit" });
-      const schichten = [audioLebt ? "Audio" : "", videoLebt ? "Video" : ""]
-        .filter(Boolean).join("+");
       const neu = state.wachNeustarts
         ? " · " + state.wachNeustarts + " Neustart" +
           (state.wachNeustarts > 1 ? "s" : "")
         : "";
-      $("fuss-hinweis").textContent = "wach seit " + seit + " (" + schichten + ")" + neu;
+      $("fuss-hinweis").textContent = SILK
+        ? "wach: Silk-Ton · seit " + seit + neu
+        : "wach seit " + seit + " (" +
+          [audioLebt ? "Audio" : "", videoLebt ? "Video" : ""]
+            .filter(Boolean).join("+") + ")" + neu;
       $("fuss-hinweis").title = "Wake Lock: " +
         (state.lockTyp === "wakelock" ? "Bildschirm-Sperre"
          : state.lockTyp === "video" ? "Wiedergabe-Wächter" : "keiner");
