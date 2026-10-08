@@ -48,6 +48,9 @@ const state = {
   letztesGemma: 0,
   hinweisText: "",
   hinweisBis: 0,
+  wetter: null,
+  welt: null,
+  radar: { frames: [], pos: 0, rot: null, liste: null },
   wachSeit: 0,
   wachNeustarts: 0,
   wachAudioLebt: false,
@@ -1117,6 +1120,17 @@ function terminWann(t) {
   return name + (t.zeit ? ", " + t.zeit : "");
 }
 
+function newsAlter(iso) {
+  const d = new Date(iso);
+  if (isNaN(d)) return "";
+  const min = Math.round((Date.now() - d.getTime()) / 60000);
+  if (min < 1) return "gerade eben";
+  if (min < 60) return "vor " + min + " Min";
+  const std = Math.floor(min / 60);
+  if (std < 24) return "vor " + std + " Std";
+  return "vor " + Math.floor(std / 24) + " Tagen";
+}
+
 function morgenStr() {
   const d = new Date();
   d.setDate(d.getDate() + 1);
@@ -1162,6 +1176,202 @@ async function klangSchalten() {
     }
   } catch (e) { /* Anzeige bleibt wie sie ist */ }
   tonAnzeige();
+}
+
+/* ---------------- Wetter: 3 Tage (Open-Meteo, kein Key) ---------------- */
+
+const WETTER_URL = "https://api.open-meteo.com/v1/forecast?latitude=53.8655&longitude=10.6866" +
+  "&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max" +
+  "&timezone=Europe%2FBerlin&forecast_days=3";
+
+async function wetterHolen() {
+  try {
+    const c = localStorage.getItem("gemma_wetter");
+    if (c) {
+      const d = JSON.parse(c);
+      if (d && d.daten && Date.now() - d.t < 600000) { kachelWetter(d.daten); return; }
+    }
+  } catch (e) { /* Cache kaputt: neu holen */ }
+  try {
+    const r = await fetch(WETTER_URL, { cache: "no-store" });
+    if (!r.ok) throw new Error("wetter http");
+    const d = await r.json();
+    if (!d.daily) throw new Error("wetter leer");
+    try { localStorage.setItem("gemma_wetter", JSON.stringify({ t: Date.now(), daten: d })); }
+    catch (e) { /* Cache voll: egal */ }
+    kachelWetter(d);
+  } catch (e) {
+    kachelWetter(null);
+  }
+}
+
+function wetterIcon(code) {
+  let art = "wolke";
+  if (code === 0) art = "sonne";
+  else if (code >= 1 && code <= 2) art = "heiter";
+  else if (code === 3) art = "wolke";
+  else if (code === 45 || code === 48) art = "nebel";
+  else if (code >= 51 && code <= 67) art = "regen";
+  else if (code >= 71 && code <= 77) art = "schnee";
+  else if (code >= 80 && code <= 82) art = "schauer";
+  else if (code >= 85 && code <= 86) art = "schnee";
+  else if (code >= 95) art = "blitz";
+  const strahlen = '<g stroke="#ffd166" stroke-width="3" stroke-linecap="round">' +
+    '<line x1="32" y1="6" x2="32" y2="14"/><line x1="32" y1="50" x2="32" y2="58"/>' +
+    '<line x1="6" y1="32" x2="14" y2="32"/><line x1="50" y1="32" x2="58" y2="32"/>' +
+    '<line x1="13" y1="13" x2="19" y2="19"/><line x1="45" y1="45" x2="51" y2="51"/>' +
+    '<line x1="51" y1="13" x2="45" y2="19"/><line x1="19" y1="45" x2="13" y2="51"/></g>';
+  const sonne = '<circle cx="32" cy="32" r="12" fill="#ffd166"/>' + strahlen;
+  const wolke = '<path d="M18 42 a9 9 0 0 1 1.5-17.9 a12 12 0 0 1 23-3.2 a8.5 8.5 0 0 1 3.5 16.3 z" fill="#b9c6da"/>';
+  const formen = {
+    sonne: sonne,
+    heiter: '<circle cx="24" cy="22" r="9" fill="#ffd166"/>' + wolke,
+    wolke: wolke,
+    nebel: '<g stroke="#b9c6da" stroke-width="4" stroke-linecap="round">' +
+      '<line x1="12" y1="24" x2="52" y2="24"/><line x1="16" y1="34" x2="48" y2="34"/>' +
+      '<line x1="12" y1="44" x2="52" y2="44"/></g>',
+    regen: wolke + '<g stroke="#4fa3ff" stroke-width="3.5" stroke-linecap="round">' +
+      '<line x1="24" y1="46" x2="21" y2="54"/><line x1="33" y1="46" x2="30" y2="56"/>' +
+      '<line x1="42" y1="46" x2="39" y2="54"/></g>',
+    schauer: wolke + '<g stroke="#4fa3ff" stroke-width="3.5" stroke-linecap="round">' +
+      '<line x1="22" y1="47" x2="18" y2="55"/><line x1="34" y1="47" x2="30" y2="57"/>' +
+      '<line x1="46" y1="47" x2="42" y2="55"/></g>' +
+      '<line x1="40" y1="36" x2="34" y2="44" stroke="#4fa3ff" stroke-width="3" stroke-linecap="round"/>',
+    schnee: wolke + '<g fill="#dff2ff"><circle cx="24" cy="50" r="2.4"/><circle cx="33" cy="54" r="2.4"/>' +
+      '<circle cx="42" cy="50" r="2.4"/></g>',
+    blitz: wolke + '<path d="M33 42 L26 54 L32 54 L29 62 L38 50 L32 50 Z" fill="#ffd166"/>',
+  };
+  return "<svg viewBox='0 0 64 64' class='wtag-svg' aria-hidden='true'>" + (formen[art] || wolke) + "</svg>";
+}
+
+function wochentagKurz(iso) {
+  const teile = String(iso).split("-");
+  const d = new Date(Number(teile[0]), Number(teile[1]) - 1, Number(teile[2]));
+  return TAGE_KURZ[d.getDay()];
+}
+
+function kachelWetter(d) {
+  state.wetter = d;
+  const box = $("wetter-tage");
+  box.innerHTML = "";
+  if (!d || !d.daily || !d.daily.time || !d.daily.time.length) {
+    const leer = document.createElement("div");
+    leer.className = "kachel-zusatz";
+    leer.textContent = "Wetter gerade nicht erreichbar";
+    box.append(leer);
+    return;
+  }
+  const tage = d.daily;
+  for (let i = 0; i < Math.min(3, tage.time.length); i++) {
+    const zelle = document.createElement("div");
+    zelle.className = "wtag" + (i === 0 ? " wtag-heute" : "");
+    const name = i === 0 ? "heute" : wochentagKurz(tage.time[i]);
+    const regen = (tage.precipitation_probability_max[i] == null)
+      ? "—" : Math.round(tage.precipitation_probability_max[i]) + " %";
+    zelle.innerHTML =
+      '<div class="wtag-name">' + name + "</div>" +
+      '<div class="wtag-icon">' + wetterIcon(tage.weather_code[i]) + "</div>" +
+      '<div class="wtag-werte"><b>' + Math.round(tage.temperature_2m_max[i]) +
+      "°</b> / " + Math.round(tage.temperature_2m_min[i]) + "°</div>" +
+      '<div class="wtag-regen">' + regen + " Regen</div>";
+    box.append(zelle);
+  }
+  state.kachelDaten["k-wetter"] = d;
+}
+
+/* ---------------- gemivo-Welt + AI News ---------------- */
+
+async function weltHolen() {
+  try {
+    const p = new URLSearchParams();
+    p.set("t", Date.now());
+    const r = await fetch("/welt-status.json?" + p.toString(), { cache: "no-store" });
+    if (!r.ok) return;
+    const d = await r.json();
+    if (!d.ok) return;
+    state.welt = d;
+    kachelWelt(d);
+    kachelNews(d.news);
+  } catch (e) { /* Kachel bleibt wie sie ist */ }
+}
+
+function kachelWelt(d) {
+  const apps = d.apps || [];
+  const wach = apps.filter((a) => a.ok).length;
+  const v = d.vital || {};
+  $("welt-kopf").textContent = wach + " von " + apps.length + " Apps wach";
+  $("welt-vital").textContent = [
+    v.uptime_tage != null ? "Uptime " + v.uptime_tage + " Tage" : "",
+    v.disk_prozent != null ? "Platte " + v.disk_prozent + " %" : "",
+    v.ram_prozent != null ? "RAM " + v.ram_prozent + " %" : "",
+    v.cert_tage != null ? "Zertifikat " + v.cert_tage + " Tage" : "",
+  ].filter(Boolean).join(" · ");
+  const alter = d.zeit ? Math.round(Date.now() / 1000 - d.zeit) : 999;
+  $("welt-alter").textContent = alter < 300 ? "Stand: gerade geprüft"
+    : "Stand: vor " + Math.round(alter / 60) + " Min";
+  state.kachelDaten["k-welt"] = d;
+}
+
+function kachelNews(news) {
+  const box = $("news-liste");
+  box.innerHTML = "";
+  if (!news || !news.length) {
+    const leer = document.createElement("div");
+    leer.className = "kachel-zusatz";
+    leer.textContent = "gerade nichts Neues";
+    box.append(leer);
+    return;
+  }
+  for (const n of news) {
+    const zeile = document.createElement("div");
+    zeile.className = "news-zeile";
+    zeile.textContent = n.titel;
+    box.append(zeile);
+  }
+}
+
+/* ---------------- Regenradar (Rainviewer, Rotation) ---------------- */
+
+const RADAR_Z = 6, RADAR_X = 33, RADAR_Y = 20;   /* Lübeck */
+
+async function radarFramesHolen() {
+  try {
+    const r = await fetch("https://api.rainviewer.com/public/weather-maps.json",
+      { cache: "no-store" });
+    const d = await r.json();
+    const past = (d.radar && d.radar.past) || [];
+    state.radar.frames = past.slice(-8).map((f) =>
+      d.host + f.path + "/256/" + RADAR_Z + "/" + RADAR_X + "/" + RADAR_Y + "/2/1_1.png");
+  } catch (e) {
+    state.radar.frames = [];
+  }
+}
+
+function radarDrehen() {
+  const el = $("radar-bild");
+  if (!el || !state.radar.frames.length) return;
+  el.src = state.radar.frames[state.radar.pos % state.radar.frames.length];
+  state.radar.pos++;
+}
+
+function radarStart() {
+  radarStop();
+  if (!state.bilder) {
+    $("radar-hinweis").textContent = "Bilder sind aus - den Bilder-Knopf antippen";
+    $("radar-hinweis").hidden = false;
+    return;
+  }
+  $("radar-hinweis").hidden = true;
+  radarFramesHolen().then(() => {
+    radarDrehen();
+    state.radar.rot = setInterval(radarDrehen, 900);
+  });
+  state.radar.liste = setInterval(radarFramesHolen, 300000);
+}
+
+function radarStop() {
+  if (state.radar.rot) { clearInterval(state.radar.rot); state.radar.rot = null; }
+  if (state.radar.liste) { clearInterval(state.radar.liste); state.radar.liste = null; }
 }
 
 /* ---------------- Verlauf (letzte Gespräche aller Geräte) ---------------- */
@@ -1224,6 +1434,94 @@ function overlayOeffnen(id) {
       zeile.append(wer, txt);
       inhalt.append(zeile);
     }
+  } else if (id === "k-wetter") {
+    const tage = state.wetter && state.wetter.daily;
+    if (!tage || !tage.time) {
+      const leer = document.createElement("div");
+      leer.className = "ov-leer";
+      leer.textContent = "Wetter gerade nicht erreichbar.";
+      inhalt.append(leer);
+    } else {
+      const trend = document.createElement("div");
+      trend.className = "ov-wetter";
+      for (let i = 0; i < Math.min(3, tage.time.length); i++) {
+        const zelle = document.createElement("div");
+        zelle.className = "ov-wtag";
+        const name = i === 0 ? "heute" : wochentagKurz(tage.time[i]);
+        const regen = (tage.precipitation_probability_max[i] == null)
+          ? "—" : Math.round(tage.precipitation_probability_max[i]) + " %";
+        zelle.innerHTML =
+          '<div class="wtag-name">' + name + "</div>" +
+          '<div class="wtag-icon gross">' + wetterIcon(tage.weather_code[i]) + "</div>" +
+          '<div class="ov-wtag-temp"><b>' + Math.round(tage.temperature_2m_max[i]) +
+          "°</b> / " + Math.round(tage.temperature_2m_min[i]) + "°</div>" +
+          '<div class="wtag-regen">' + regen + " Regen</div>";
+        trend.append(zelle);
+      }
+      inhalt.append(trend);
+      const radarLabel = document.createElement("div");
+      radarLabel.className = "ov-label";
+      radarLabel.style.marginTop = "1.6rem";
+      radarLabel.textContent = "Regenradar (letzte 90 Minuten)";
+      inhalt.append(radarLabel);
+      const bild = document.createElement("img");
+      bild.id = "radar-bild";
+      bild.className = "radar-bild";
+      bild.alt = "Regenradar";
+      inhalt.append(bild);
+      const hinweis = document.createElement("div");
+      hinweis.id = "radar-hinweis";
+      hinweis.className = "ov-leer";
+      hinweis.hidden = true;
+      inhalt.append(hinweis);
+      radarStart();
+    }
+  } else if (id === "k-welt" && daten) {
+    const apps = daten.apps || [];
+    const wach = apps.filter((a) => a.ok).length;
+    zeileInOverlay(inhalt, "Apps wach", wach + " von " + apps.length);
+    const liste = document.createElement("div");
+    liste.className = "app-liste";
+    for (const a of apps) {
+      const zeile = document.createElement("div");
+      zeile.className = "app-zeile";
+      const punkt = document.createElement("span");
+      punkt.className = "punktapp " + (a.ok ? "ok" : "rot");
+      const name = document.createElement("span");
+      name.className = "app-name";
+      name.textContent = a.host;
+      const info = document.createElement("span");
+      info.className = "app-ms";
+      info.textContent = a.ok ? (a.ms + " ms") : "keine Antwort";
+      zeile.append(punkt, name, info);
+      liste.append(zeile);
+    }
+    inhalt.append(liste);
+    const v = daten.vital || {};
+    if (v.uptime_tage != null) zeileInOverlay(inhalt, "Uptime", v.uptime_tage + " Tage");
+    if (v.disk_prozent != null) zeileInOverlay(inhalt, "Platte belegt", v.disk_prozent + " %");
+    if (v.ram_prozent != null) zeileInOverlay(inhalt, "RAM belegt", v.ram_prozent + " %");
+    if (v.cert_tage != null) zeileInOverlay(inhalt, "Nächstes Zertifikat läuft in", v.cert_tage + " Tagen (" + (v.cert_host || "") + ")");
+  } else if (id === "k-news") {
+    const news = (state.welt && state.welt.news) || [];
+    if (!news.length) {
+      const leer = document.createElement("div");
+      leer.className = "ov-leer";
+      leer.textContent = "Gerade nichts Neues.";
+      inhalt.append(leer);
+    }
+    for (const n of news) {
+      const zeile = document.createElement("div");
+      zeile.className = "ov-msg";
+      const titel = document.createElement("div");
+      titel.className = "ov-msg-text";
+      titel.textContent = n.titel;
+      const meta = document.createElement("div");
+      meta.className = "ov-msg-wer";
+      meta.textContent = (n.quelle ? n.quelle + " · " : "") + newsAlter(n.zeit);
+      zeile.append(titel, meta);
+      inhalt.append(zeile);
+    }
   } else if (id === "k-musik" && daten) {
     zeileInOverlay(inhalt, "Titel", daten.titel);
     zeileInOverlay(inhalt, "Von", daten.kuenstler);
@@ -1281,6 +1579,7 @@ function overlaySchliessen() {
   const ov = $("overlay");
   ov.classList.remove("offen");
   ov.setAttribute("aria-hidden", "true");
+  radarStop();
 }
 
 function kachelnKlickbarMachen() {
@@ -1525,11 +1824,15 @@ setInterval(orbTakt, 1000);
 setInterval(wiedergabeTakt, 250);
 setInterval(wachenTakt, 2000);
 setInterval(statusHolen, Math.max(15, CFG.statusSek) * 1000);
+setInterval(weltHolen, 30000);
+setInterval(wetterHolen, 600000);
 setInterval(verlaufPoll, 30000);
 startupPruefen();
 lockStarten();
 kachelnKlickbarMachen();
 statusHolen();
+wetterHolen();
+weltHolen();
 verlaufPoll();
 
 /* Prüfhaken (unsichtbar, für automatische Tests): */

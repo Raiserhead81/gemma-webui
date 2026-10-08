@@ -603,3 +603,65 @@ main:not(.ohne-fotos) .gespraech-kachel .kachel-label { letter-spacing: 0.14em; 
 }
 
 .fuss-hinweis { margin-left: 1.2rem; }
+
+
+/* ---------- Wetter (breite Kachel) + Radar-Overlay ---------- */
+.wetter-kachel { grid-column: 1 / -1; }
+.kachel-label-zusatz {
+  font-weight: 400;
+  letter-spacing: 0.04em;
+  text-transform: none;
+  color: #4a5c7a;
+  margin-left: 0.8rem;
+}
+.wetter-tage { display: flex; gap: 2.5rem; }
+.wtag { text-align: center; min-width: 9rem; }
+.wtag-name {
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: var(--cyan);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+}
+.wtag-icon .wtag-svg, .wtag-svg { width: 5.6rem; height: 5.6rem; }
+.wtag-icon.gross .wtag-svg { width: 8rem; height: 8rem; }
+.wtag-werte { font-size: 1.6rem; font-variant-numeric: tabular-nums; }
+.wtag-werte b { font-size: 2rem; }
+.wtag-regen { font-size: 1.15rem; color: var(--text-dunkel); }
+.wtag-heute .wtag-name { color: var(--akzent-hell); }
+
+.ov-wetter { display: flex; gap: 4rem; justify-content: space-around; padding: 0.6rem 0 1rem; }
+.ov-wtag { text-align: center; }
+.ov-wtag-temp { font-size: 1.7rem; font-variant-numeric: tabular-nums; }
+.ov-wtag-temp b { font-size: 2.2rem; }
+.radar-bild {
+  width: 100%;
+  max-height: 46vh;
+  object-fit: contain;
+  border-radius: 1rem;
+  background: #0d1420;
+  display: block;
+}
+
+/* ---------- gemivo-Welt + News ---------- */
+.app-liste { display: flex; flex-direction: column; gap: 0.35rem; }
+.app-zeile {
+  display: flex;
+  align-items: center;
+  gap: 0.9rem;
+  font-size: 1.3rem;
+  border-bottom: 1px solid rgba(34,48,71,0.5);
+  padding: 0.35rem 0;
+}
+.punktapp { width: 0.85rem; height: 0.85rem; border-radius: 50%; background: var(--gruen); flex: none; }
+.punktapp.rot { background: var(--rot); box-shadow: 0 0 0.8rem rgba(255,92,116,0.6); }
+.app-name { flex: 1; }
+.app-ms { color: var(--text-dunkel); font-variant-numeric: tabular-nums; }
+.news-liste { display: flex; flex-direction: column; gap: 0.5rem; }
+.news-zeile {
+  font-size: 1.3rem;
+  line-height: 1.35;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
