@@ -48,6 +48,10 @@ const state = {
   letztesGemma: 0,
   hinweisText: "",
   hinweisBis: 0,
+  wachSeit: 0,
+  wachNeustarts: 0,
+  wachAudioLebt: false,
+  wachVideoLebt: false,
   /* Mikrofon */
   mikro: { stream: null, ctx: null, knoten: null, stumm: null, aktiv: false,
            vorlauf: [], rest: null },
@@ -393,30 +397,104 @@ function spieltGerade() {
 
 /* Ton-Zustand sichtbar machen (Kay-Sprache, ohne Fachbegriffe) */
 
-function wachenTakt() {
-  /* Stiller Audio-Graph nur im Klang-Modus "Display" - bei "Soundbar" soll
-     der Geraete-Audio-Pfad frei bleiben, dort haelt das Video wach. */
+/* ---------- Wachen: Audio-Loop (Hauptwache) + Video + Wake Lock ----------
+   Der stille Audio-Loop (Oszillator, praktisch unhörbar) läuft in JEDEM
+   Klang-Modus: bei "Soundbar" ist der Geräte-Audio-Pfad frei (Gemma spricht
+   über lsp/Soundbar), bei "Display" stört der Loop das Playback nicht
+   (eigener AudioContext). Start nur nach Nutzergeste, Auto-Restart bei
+   Sichtbar-Werden und per Heartbeat - jeder Neustart wird mit Uhrzeit
+   im Fuß-Zähler sichtbar gemacht. */
+
+function audioWacheStarten() {
   if (state.wachen) {
-    if (state.klang === "show" && !document.hidden) {
-      if (state.wachen.state === "suspended") {
-        state.wachen.resume().catch(() => {});
-      }
-    } else if (state.wachen.state === "running") {
-      state.wachen.suspend().catch(() => {});
+    if (state.wachen.state === "suspended") {
+      state.wachen.resume().catch(() => {});
     }
+    return;
   }
+  try {
+    const AC = window.AudioContext || window.webkitAudioContext;
+    state.wachen = new AC();
+    const osc = state.wachen.createOscillator();
+    const gain = state.wachen.createGain();
+    gain.gain.value = 0.001;          /* praktisch stumm, zaehlt als Ton */
+    osc.frequency.value = 220;
+    osc.connect(gain);
+    gain.connect(state.wachen.destination);
+    osc.start();
+    state.wachen.resume().catch(() => {});
+  } catch (e) {
+    state.wachen = null;
+  }
+}
+
+function wachMarkieren(grund) {
+  /* Erster Start oder Neustart nach Kill: Zeitstempel neu, Neustarts zaehlen */
+  if (!state.wachSeit) {
+    state.wachSeit = Date.now();
+    state.wachNeustarts = 0;
+  } else if (grund) {
+    state.wachNeustarts++;
+  }
+}
+
+function wachenTakt() {
+  /* Audio-Wache (Hauptwache, immer und in jedem Klang-Modus) */
+  audioWacheStarten();
+  let audioLebt = false;
+  if (state.wachen && state.wachen.state === "running") {
+    audioLebt = true;
+  } else if (state.wachen && !document.hidden) {
+    state.wachen.resume().catch(() => {});
+  }
+  if (audioLebt && !state.wachAudioLebt) wachMarkieren("audio");
+  state.wachAudioLebt = audioLebt;
+
+  /* Video-Wache (zweite Schicht) */
+  let videoLebt = false;
   if (state.video && state.lockTyp === "video" && !document.hidden) {
     if (state.video.paused) {
       const p = state.video.play();
       if (p && p.catch) p.catch(() => {});
     }
+    videoLebt = !state.video.paused;
   }
+  if (videoLebt && !state.wachVideoLebt && state.wachAudioLebt === false) {
+    wachMarkieren("video");
+  }
+  state.wachVideoLebt = videoLebt;
+
+  /* Sichtbarer Nachweis im Fuss */
   if ($("fuss-hinweis") && Date.now() >= state.hinweisBis) {
-    $("fuss-hinweis").textContent = state.lockTyp ? "Display bleibt wach" : "";
-    $("fuss-hinweis").title = state.lockTyp === "wakelock" ? "Bildschirm-Sperre"
-      : state.lockTyp === "video" ? "Wiedergabe-Wächter" : "";
+    if (state.wachSeit && (audioLebt || videoLebt)) {
+      const seit = new Date(state.wachSeit).toLocaleTimeString("de-DE",
+        { hour: "2-digit", minute: "2-digit" });
+      const schichten = [audioLebt ? "Audio" : "", videoLebt ? "Video" : ""]
+        .filter(Boolean).join("+");
+      const neu = state.wachNeustarts
+        ? " · " + state.wachNeustarts + " Neustart" +
+          (state.wachNeustarts > 1 ? "s" : "")
+        : "";
+      $("fuss-hinweis").textContent = "wach seit " + seit + " (" + schichten + ")" + neu;
+      $("fuss-hinweis").title = "Wake Lock: " +
+        (state.lockTyp === "wakelock" ? "Bildschirm-Sperre"
+         : state.lockTyp === "video" ? "Wiedergabe-Wächter" : "keiner");
+    } else {
+      $("fuss-hinweis").textContent = "";
+    }
   }
 }
+
+/* Heartbeat: alle 5 Min die Wachen anfassen (endet ein Stillstand, greift
+   der 2-s-Takt und zaehlt den Neustart mit neuer Zeit) */
+setInterval(() => {
+  if (document.hidden) return;
+  audioWacheStarten();
+  if (state.video && state.lockTyp === "video" && state.video.paused) {
+    const p = state.video.play();
+    if (p && p.catch) p.catch(() => {});
+  }
+}, 300000);
 
 function tonAnzeige() {
   const el = $("ton");
@@ -1245,9 +1323,8 @@ document.addEventListener("visibilitychange", () => {
     state.lockTyp = null;
     state.lockSentinel = null;
     if (state.video) state.video.pause();
-    if (state.wachen && state.wachen.state === "running") {
-      state.wachen.suspend().catch(() => {});
-    }
+    /* Wachen sofort zurueckholen (kein Suspend - Kill sichtbar zaehlen) */
+    audioWacheStarten();
     lockStarten();
     wakeVerbinden();
     statusHolen();
@@ -1290,10 +1367,12 @@ $("kiosk-btn").addEventListener("click", (ev) => {
   vollbildAnfordern();
   lockStarten();
   playbackCtx();
+  audioWacheStarten();
 });
 
 document.addEventListener("click", () => {
   lockStarten();
+  audioWacheStarten();
   if (localStorage.getItem("gemma_kiosk") && !document.fullscreenElement) {
     vollbildAnfordern();
   }
