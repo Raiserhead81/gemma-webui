@@ -923,6 +923,7 @@ async function statusHolen() {
     state.klang = d.klang.ziel;
     if (vorher !== state.klang) tonAnzeige();
   }
+  weltHolen(d);
   kachelMusik(d.musik);
   kachelVital(d.vital);
   kachelHeizung(d.heizung);
@@ -1281,18 +1282,12 @@ function kachelWetter(d) {
 
 /* ---------------- gemivo-Welt + AI News ---------------- */
 
-async function weltHolen() {
-  try {
-    const p = new URLSearchParams();
-    p.set("t", Date.now());
-    const r = await fetch("/welt-status.json?" + p.toString(), { cache: "no-store" });
-    if (!r.ok) return;
-    const d = await r.json();
-    if (!d.ok) return;
-    state.welt = d;
-    kachelWelt(d);
-    kachelNews(d.news);
-  } catch (e) { /* Kachel bleibt wie sie ist */ }
+function weltHolen(d) {
+  /* Welt-Daten stecken im /status (bruecke, 60s-Cache) */
+  if (!d || !d.welt || !d.welt.apps) return;
+  state.welt = d.welt;
+  kachelWelt(d.welt);
+  kachelNews(d.welt.news);
 }
 
 function kachelWelt(d) {
@@ -1824,7 +1819,6 @@ setInterval(orbTakt, 1000);
 setInterval(wiedergabeTakt, 250);
 setInterval(wachenTakt, 2000);
 setInterval(statusHolen, Math.max(15, CFG.statusSek) * 1000);
-setInterval(weltHolen, 30000);
 setInterval(wetterHolen, 600000);
 setInterval(verlaufPoll, 30000);
 startupPruefen();
@@ -1832,7 +1826,6 @@ lockStarten();
 kachelnKlickbarMachen();
 statusHolen();
 wetterHolen();
-weltHolen();
 verlaufPoll();
 
 /* Prüfhaken (unsichtbar, für automatische Tests): */
