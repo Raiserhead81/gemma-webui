@@ -817,3 +817,42 @@ main:not(.ohne-fotos) .gespraech-kachel .kachel-label { letter-spacing: 0.14em; 
 .punktapp.rot { background: var(--rot); box-shadow: 0 0 0.8rem rgba(255,92,116,0.6); }
 .app-name { flex: 1; }
 .app-ms { color: var(--text-dunkel); font-variant-numeric: tabular-nums; }
+
+/* ---------- Server-Kachel (ex gemivo-Welt, 09.10.2026) ---------- */
+/* Gleiche grosse-Zahlen-Sprache wie die Vitaldaten-Kachel. */
+.server-zahlen { display: flex; justify-content: space-between; gap: 1.2rem; }
+.server-zahl small {
+  display: block;
+  margin-top: 0.35rem;
+  font-size: 1.05rem;
+  letter-spacing: 0.06em;
+  color: var(--text-dunkel);
+}
+.server-wert {
+  display: block;
+  font-size: 3rem;
+  font-weight: 800;
+  line-height: 1.05;
+  font-variant-numeric: tabular-nums;
+  background-image: linear-gradient(180deg, #ffffff, #b9c6dd);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+.server-wert.server-gruen { background-image: linear-gradient(180deg, #d9ffe9, var(--gruen)); }
+.server-wert.server-gelb { background-image: linear-gradient(180deg, #fff3d6, var(--gelb)); }
+.server-wert.server-rot { background-image: linear-gradient(180deg, #ffdde3, var(--rot)); }
+.dienst-down.rot { color: var(--rot); font-weight: 700; }
+
+/* Overlay: Abschnitts-Koepfe (Dienste / Apps) + rote Down-Werte */
+.ov-abschnitt {
+  margin-top: 0.4rem;
+  padding-top: 0.9rem;
+  border-top: 1px solid rgba(34,48,71,0.5);
+  font-size: 0.95rem;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--text-dunkel);
+}
+.ov-roh-wert.rot { color: var(--rot); font-weight: 700; }

@@ -1333,23 +1333,79 @@ function kachelWetter(d) {
 /* ---------------- gemivo-Welt ---------------- */
 
 function weltHolen(d) {
-  /* Welt-Daten stecken im /status (bruecke, 60s-Cache) */
-  if (!d || !d.welt || !d.welt.apps) return;
+  /* Server-Daten stecken im /status (bruecke, 60s-Cache) */
+  if (!d || !d.welt) return;
   state.welt = d.welt;
+  d.welt.zeit = d.zeit;   /* Stand-Angabe: kachelWelt sieht nur d.welt */
   kachelWelt(d.welt);
 }
 
+/* Farbschwellen bewusst hardcoded (Kay-Wunsch, ehrlich): gruene Zahl
+   bis 69, gelbe ab 70, rote ab 90 - gleich fuer CPU, RAM und Disk. */
+function serverStufe(wert) {
+  return wert >= 90 ? "server-rot" : wert >= 70 ? "server-gelb" : "server-gruen";
+}
+
+function uptimeMenschlich(sek) {
+  const tage = Math.floor(sek / 86400);
+  const stunden = Math.floor((sek % 86400) / 3600);
+  if (tage >= 1) {
+    return tage + (tage === 1 ? " Tag" : " Tage")
+      + (stunden ? " " + stunden + " Std" : "");
+  }
+  return stunden + " Std " + Math.floor((sek % 3600) / 60) + " Min";
+}
+
 function kachelWelt(d) {
-  const apps = d.apps || [];
-  const wach = apps.filter((a) => a.ok).length;
+  /* SERVER-Kachel: grosse Zahlen CPU/RAM/Disk (+ Temp, falls da),
+     Zeile 2 = Uptime + Dienste-down. Die App-Ampel lebt nur im Overlay. */
   const v = d.vital || {};
-  $("welt-kopf").textContent = wach + " von " + apps.length + " Apps wach";
-  $("welt-vital").textContent = [
-    v.uptime_tage != null ? "Uptime " + v.uptime_tage + " Tage" : "",
-    v.disk_prozent != null ? "Platte " + v.disk_prozent + " %" : "",
-    v.ram_prozent != null ? "RAM " + v.ram_prozent + " %" : "",
-    v.cert_tage != null ? "Zertifikat " + v.cert_tage + " Tage" : "",
-  ].filter(Boolean).join(" · ");
+  const box = $("server-zahlen");
+  box.innerHTML = "";
+  const werte = [["CPU", v.cpu_prozent], ["RAM", v.ram_prozent],
+                 ["Disk", v.disk_prozent]];
+  if (typeof v.temp_celsius === "number") werte.push(["Temp", v.temp_celsius, "°"]);
+  let gezeigt = 0;
+  for (const [name, wert, einheit] of werte) {
+    if (typeof wert !== "number") continue;
+    gezeigt += 1;
+    const zelle = document.createElement("div");
+    zelle.className = "server-zahl";
+    const zahl = document.createElement("span");
+    zahl.className = "server-wert " + serverStufe(wert);
+    zahl.textContent = Math.round(wert) + (einheit || "%");
+    const label = document.createElement("small");
+    label.textContent = name;
+    zelle.append(zahl, label);
+    box.append(zelle);
+  }
+  if (!gezeigt) {
+    const leer = document.createElement("div");
+    leer.className = "kachel-zusatz";
+    leer.textContent = "—";
+    box.append(leer);
+  }
+  const zeile2 = $("welt-zeile2");
+  zeile2.innerHTML = "";
+  const stuecke = [];
+  if (typeof v.uptime_sekunden === "number") {
+    stuecke.push(["Uptime " + uptimeMenschlich(v.uptime_sekunden), ""]);
+  } else if (v.uptime_tage != null) {
+    stuecke.push(["Uptime " + v.uptime_tage + " Tage", ""]);
+  }
+  const dienste = v.dienste;
+  if (dienste && typeof dienste.failed === "number") {
+    stuecke.push([dienste.failed + (dienste.failed === 1 ? " Dienst down" : " Dienste down"),
+                  dienste.failed > 0 ? "dienst-down rot" : "dienst-down"]);
+  }
+  stuecke.forEach(([text, klasse], i) => {
+    if (i) zeile2.append(" · ");
+    const span = document.createElement("span");
+    if (klasse) span.className = klasse;
+    span.textContent = text;
+    zeile2.append(span);
+  });
+  if (!stuecke.length) zeile2.textContent = "—";
   const alter = d.zeit ? Math.round(Date.now() / 1000 - d.zeit) : 999;
   $("welt-alter").textContent = alter < 300 ? "Stand: gerade geprüft"
     : "Stand: vor " + Math.round(alter / 60) + " Min";
@@ -1580,7 +1636,9 @@ function overlayOeffnen(id) {
   if (!el || $("overlay").classList.contains("offen")) return;
   const daten = state.kachelDaten[id] || null;
   const label = el.querySelector(".kachel-label");
-  $("overlay-label").textContent = label ? label.textContent : "";
+  $("overlay-label").textContent = label
+    ? (id === "k-welt" ? label.firstChild.textContent : label.textContent)
+    : "";
   const inhalt = $("overlay-inhalt");
   inhalt.innerHTML = "";
   let meta = "";
@@ -1651,8 +1709,63 @@ function overlayOeffnen(id) {
       radarStart();
     }
   } else if (id === "k-welt" && daten) {
+    const v = daten.vital || {};
+    /* Tabelle aller Werte */
+    if (typeof v.cpu_prozent === "number") {
+      zeileInOverlay(inhalt, "CPU-Last", Math.round(v.cpu_prozent) + " %");
+    }
+    if (typeof v.ram_prozent === "number") {
+      zeileInOverlay(inhalt, "RAM belegt", Math.round(v.ram_prozent) + " %");
+    }
+    if (typeof v.disk_prozent === "number") {
+      zeileInOverlay(inhalt, "Platte belegt", Math.round(v.disk_prozent) + " %");
+    }
+    if (typeof v.temp_celsius === "number") {
+      zeileInOverlay(inhalt, "CPU-Temperatur", v.temp_celsius + " °C");
+    }
+    if (typeof v.uptime_sekunden === "number") {
+      zeileInOverlay(inhalt, "Uptime", uptimeMenschlich(v.uptime_sekunden));
+    } else if (v.uptime_tage != null) {
+      zeileInOverlay(inhalt, "Uptime", v.uptime_tage + " Tage");
+    }
+    if (v.cert_tage != null) {
+      zeileInOverlay(inhalt, "Nächstes Zertifikat läuft in",
+                     v.cert_tage + " Tagen (" + (v.cert_host || "") + ")");
+    }
+    /* Dienste: nur die auffaelligen, sonst die gruene Gesamtmeldung */
+    const abschnittD = document.createElement("div");
+    abschnittD.className = "ov-abschnitt";
+    abschnittD.textContent = "Dienste";
+    inhalt.append(abschnittD);
+    const dienste = v.dienste;
+    const failedListe = dienste && Array.isArray(dienste.failedListe)
+      ? dienste.failedListe : [];
+    if (dienste && typeof dienste.gesamt === "number" && failedListe.length) {
+      for (const name of failedListe) {
+        const zeile = document.createElement("div");
+        zeile.className = "ov-roh-zeile";
+        const k = document.createElement("span");
+        k.className = "ov-roh-key";
+        k.textContent = name;
+        const w = document.createElement("span");
+        w.className = "ov-roh-wert rot";
+        w.textContent = "down";
+        zeile.append(k, w);
+        inhalt.append(zeile);
+      }
+    } else if (dienste && typeof dienste.gesamt === "number") {
+      zeileInOverlay(inhalt, "Status",
+                     "Alle " + dienste.gesamt + " Dienste grün");
+    } else {
+      zeileInOverlay(inhalt, "Status", "—");
+    }
+    /* App-Ampel (sekundaer, unten) */
     const apps = daten.apps || [];
     const wach = apps.filter((a) => a.ok).length;
+    const abschnittA = document.createElement("div");
+    abschnittA.className = "ov-abschnitt";
+    abschnittA.textContent = "Apps";
+    inhalt.append(abschnittA);
     zeileInOverlay(inhalt, "Apps wach", wach + " von " + apps.length);
     const liste = document.createElement("div");
     liste.className = "app-liste";
@@ -1671,11 +1784,6 @@ function overlayOeffnen(id) {
       liste.append(zeile);
     }
     inhalt.append(liste);
-    const v = daten.vital || {};
-    if (v.uptime_tage != null) zeileInOverlay(inhalt, "Uptime", v.uptime_tage + " Tage");
-    if (v.disk_prozent != null) zeileInOverlay(inhalt, "Platte belegt", v.disk_prozent + " %");
-    if (v.ram_prozent != null) zeileInOverlay(inhalt, "RAM belegt", v.ram_prozent + " %");
-    if (v.cert_tage != null) zeileInOverlay(inhalt, "Nächstes Zertifikat läuft in", v.cert_tage + " Tagen (" + (v.cert_host || "") + ")");
   } else if (id === "k-musik" && daten) {
     zeileInOverlay(inhalt, "Titel", daten.titel);
     zeileInOverlay(inhalt, "Von", daten.kuenstler);
