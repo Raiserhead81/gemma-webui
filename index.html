@@ -25,13 +25,6 @@
     <div id="uhr" class="uhr">00:00</div>
     <div id="datum" class="datum">Sonntag, 7. Oktober</div>
   </div>
-  <div class="orb-block">
-    <button id="orb" class="orb" type="button" aria-label="Mit Gemma sprechen">
-      <span class="orb-ring"></span>
-      <span class="orb-kern" aria-hidden="true"></span>
-    </button>
-    <div id="orb-status" class="orb-status">Tippen und sprechen</div>
-  </div>
   <div class="verbindungs-block">
     <div class="schalter-zeile">
       <button id="klang-btn" class="bilder-btn" type="button" title="Wo Gemmas Stimme ausgegeben wird">Klang</button>
@@ -46,6 +39,27 @@
     </span>
   </div>
 </header>
+
+<!-- Geteilte SVG-Verlauefe (Tagesringe, Markt-Kurven): einmal definiert,
+     von allen Ringen ueber url(#...) benutzt. Außerhalb des Rasters. -->
+<svg id="svg-defs" width="0" height="0" aria-hidden="true" focusable="false"
+     style="position:absolute;width:0;height:0;overflow:hidden">
+  <defs>
+    <linearGradient id="ring-verlauf" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#4fd1c5"/>
+      <stop offset="55%" stop-color="#8fd7c8"/>
+      <stop offset="100%" stop-color="#ffd166"/>
+    </linearGradient>
+    <linearGradient id="kurve-verlauf" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#4fd1c5"/>
+      <stop offset="100%" stop-color="#ffd166"/>
+    </linearGradient>
+    <linearGradient id="kurve-flaeche-verlauf" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#ffd166"/>
+      <stop offset="100%" stop-color="#4fd1c5" stop-opacity="0"/>
+    </linearGradient>
+  </defs>
+</svg>
 
 <main id="haupt">
   <!-- Gesprächs-Kachel wird von app.js nur angelegt, wenn
@@ -93,9 +107,9 @@
     </div>
 
     <div class="kachel" id="k-vital">
-      <div class="kachel-label">Vitaldaten</div>
-      <div id="vital-raster" class="vital-raster"></div>
-      <div id="v-alter" class="kachel-zusatz"></div>
+      <div class="kachel-label">Vitaldaten <span class="kachel-label-zusatz">Tagesringe</span></div>
+      <div id="vital-ringe" class="vital-ringe"></div>
+      <div id="vital-fakten" class="vital-fakten"></div>
     </div>
 
     <div class="kachel" id="k-heizung">
@@ -129,10 +143,32 @@
     </div>
 
     <div class="kachel" id="k-welt">
-      <div class="kachel-label">Server <span class="kachel-label-zusatz">gemivo · antippen für Dienste &amp; Apps</span></div>
+      <div class="kachel-label">Server <span class="kachel-label-zusatz">gemivo</span></div>
       <div id="server-zahlen" class="server-zahlen"><div class="kachel-zusatz">—</div></div>
       <div id="welt-zeile2" class="kachel-zusatz">—</div>
       <div id="welt-alter" class="kachel-zusatz"></div>
+    </div>
+
+    <!-- Markt-Ampel: VIX als Wind-Metapher (Kay: "nur wie der Markt ist"),
+         darunter die Fakten VIX + DAX-Veränderung. Quelle: /status -> markt
+         (Yahoo-Finance, 10-Min-Cache, tolerant). -->
+    <div class="kachel markt-kachel" id="k-markt">
+      <div class="kachel-label">Markt <span class="kachel-label-zusatz">VIX · DAX</span></div>
+      <div class="markt-koerper">
+        <div class="markt-wort-zeile">
+          <svg class="markt-wind" viewBox="0 0 48 26" aria-hidden="true">
+            <path d="M2 7 h24 a5 5 0 1 0 -5 -6"/>
+            <path d="M2 14 h34 a5.5 5.5 0 1 1 -5 7"/>
+            <path d="M2 21 h16"/>
+          </svg>
+          <div id="markt-wort" class="markt-wort">—</div>
+        </div>
+        <div id="markt-skala" class="markt-skala" aria-hidden="true">
+          <span class="ms-zone ruhig"></span><span class="ms-zone wind"></span><span class="ms-zone unruhig"></span><span class="ms-zone sturm"></span>
+          <span id="markt-marker" class="ms-marker"></span>
+        </div>
+        <div id="markt-fakten" class="markt-fakten">—</div>
+      </div>
     </div>
   </section>
 </main>

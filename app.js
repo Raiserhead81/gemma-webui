@@ -100,12 +100,10 @@ function punktSetzen(art, text) {
 }
 
 function orbSetzen(zustand, text) {
-  const orb = $("orb");
-  orb.classList.toggle("aktiv", zustand === "aktiv");
-  orb.classList.toggle("hoert", zustand === "hoert");
-  orb.classList.toggle("spricht", zustand === "spricht");
-  orb.classList.toggle("aus", zustand === "aus");
-  $("orb-status").textContent = text;
+  /* Der Orb ist auf der Echo-Wand weg (tote Aktion, Web-Mikro von Amazon
+     blockiert) - Zustands-Texte leben im Status-Punkt der Kopfzeile.
+     Die Funktion bleibt als No-op fuer alte Aufrufstellen. */
+  void zustand; void text;
 }
 
 /* ---------------- Gesprächs-Kachel: nur anlegen, wenn gewünscht ----------------
@@ -182,28 +180,22 @@ function spieltGerade() {
 function hinweisSetzen(text, sek) {
   state.hinweisText = text;
   state.hinweisBis = Date.now() + (sek || 60) * 1000;
-  $("orb-status").textContent = text;
   $("fuss-hinweis").textContent = text;
 }
 
 function orbTakt() {
-  if (Date.now() < state.hinweisBis) {
-    $("orb-status").textContent = state.hinweisText;
-    return;
-  }
-  if (state.hoert) { orbSetzen("hoert", "Ich höre zu … nochmal tippen beendet"); return; }
-  if (Date.now() < state.denkEnde) { orbSetzen("aktiv", "denkt nach …"); return; }
+  /* Zustands-Zeiger ohne Orb: die aktuelle Lage steht im Status-Punkt
+     der Kopfzeile. Ohne aktives Geschehen bleibt der letzte Text stehen
+     (der Weckwort-Dienst pflegt dort "lauscht"). */
+  if (state.hoert) { punktSetzen("gruen", "hört zu …"); return; }
+  if (Date.now() < state.denkEnde) { punktSetzen("", "denkt nach …"); return; }
   if (Date.now() - state.letztesGemma < 9000 && !spieltGerade() &&
-      Date.now() - state.letztesGemma < 9000 && state.klang === "soundbar") {
-    orbSetzen("spricht", "ich rede (über die Soundbar)");
+      state.klang === "soundbar") {
+    punktSetzen("gruen", "ich rede (über die Soundbar)");
     return;
   }
-  if (spieltGerade()) {
-    orbSetzen("spricht", "ich rede … tippen, um zu antworten");
-    return;
-  }
-  if (state.willReden && !state.sessionBereit) { orbSetzen("aktiv", "verbinde …"); return; }
-  orbSetzen("", "Tippen und sprechen");
+  if (spieltGerade()) { punktSetzen("gruen", "ich rede …"); return; }
+  if (state.willReden && !state.sessionBereit) { punktSetzen("", "verbinde …"); return; }
 }
 
 /* ---------------- Wiedergabe: Gemmas Stimme ----------------
@@ -799,7 +791,7 @@ function gespraechVerbinden() {
       encodeURIComponent(CFG.token) + "&device=show15&version=" +
       encodeURIComponent(CFG.version));
   } catch (e) {
-    $("orb-status").textContent = "Verbindung fehlgeschlagen";
+    hinweisSetzen("Verbindung fehlgeschlagen", 20);
     return;
   }
   ws.binaryType = "arraybuffer";
@@ -820,7 +812,7 @@ function gespraechVerbinden() {
         if (state.willReden) {
           state.hoert = true;
           vorlaufFlushen();
-          orbSetzen("hoert", "Ich höre zu … nochmal tippen beendet");
+          punktSetzen("gruen", "hört zu …");
         }
         break;
       case "du":
@@ -850,7 +842,7 @@ function gespraechVerbinden() {
                     ergebnis: "Hier nicht möglich: dieses Gerät hat keine Geräte-Steuerung." });
         break;
       case "fehler":
-        $("orb-status").textContent = "kurze Pause, gleich wieder";
+        hinweisSetzen("kurze Pause, gleich wieder", 20);
         break;
       case "ende":
         gespraechSchliessen();
@@ -878,7 +870,7 @@ function redeStarten() {
   wiedergabeStoppen();
   state.willReden = true;
   state.hoert = false;
-  orbSetzen("aktiv", state.mikro.aktiv ? "verbinde …" : "Mikrofon an …");
+  punktSetzen("", state.mikro.aktiv ? "verbinde …" : "Mikrofon an …");
   gespraechVerbinden();
   mikroAktivieren().then((ok) => {
     if (!ok) { state.willReden = false; return; }
@@ -886,7 +878,7 @@ function redeStarten() {
       state.hinweisBis = 0;
       state.hoert = true;
       vorlaufFlushen();
-      orbSetzen("hoert", "Ich höre zu … nochmal tippen beendet");
+      punktSetzen("gruen", "hört zu …");
     }
   });
 }
@@ -896,7 +888,7 @@ function redeStoppen() {
   state.willReden = false;
   state.mikro.vorlauf = [];
   state.denkEnde = Date.now() + 25000;
-  orbSetzen("aktiv", "denkt nach …");
+  punktSetzen("", "denkt nach …");
 }
 
 function orbTap() {
@@ -953,6 +945,7 @@ async function statusHolen() {
   weltHolen(d);
   kachelMusik(d.musik);
   kachelVital(d.vital);
+  kachelMarkt(d.markt);
   kachelHeizung(d.heizung);
   kachelTermine(d.termine);
   if (Array.isArray(d.fotos)) {
@@ -1154,48 +1147,167 @@ function bilderKnopfSetzen() {
   b.textContent = state.bilder ? "Bilder an" : "Bilder aus";
 }
 
-function kachelVital(v) {
-  state.kachelDaten["k-vital"] = v || null;
-  const box = $("vital-raster");
-  if (!box) return;
-  box.innerHTML = "";
-  const felder = [
-    ["puls", "Puls"], ["schritte", "Schritte"],
-    ["schlaf", "Schlaf"], ["readiness", "Fit"]
-  ];
-  const daten = felder
-    .map(([key, name]) => ({
-      name,
-      wert: (v && typeof v[key] === "number" && isFinite(v[key]))
-        ? Math.round(v[key]) : null
-    }))
-    .filter((f) => f.wert !== null);
-  if (!daten.length) {
-    /* Nie Daten oder nichts Greifbares: ein ruhiger Satz statt Striche */
-    const leer = document.createElement("div");
-    leer.className = "kachel-zusatz";
-    leer.textContent = "Die Uhr meldet sich, sobald neue Werte da sind.";
-    box.append(leer);
-    $("v-alter").textContent = "";
-    return;
-  }
-  for (const f of daten) {
-    const zelle = document.createElement("div");
-    zelle.className = "vital-wert";
-    const zahl = document.createElement("span");
-    zahl.textContent = f.wert;
-    const name = document.createElement("small");
-    name.textContent = f.name;
-    zelle.append(zahl, name);
-    box.append(zelle);
-  }
-  $("v-alter").textContent = vitalStand(v);
+/* ---------------- Vitaldaten: drei Tagesringe ----------------
+   SCHLAF / READY / FIT als Ring je Score (Ring-Fuellung = Wert %,
+   Gradient-Stroke Cyan->Gold wie die Wand, Zahl im Ring faerbt sich
+   dezent nach Stufe: >= 80 gruen, 50-79 gold, < 50 rot). Darunter die
+   Werte-Zeile: Schritte als Fortschritt zum Ziel (8000), Puls, Stand.
+   Keine Daten heute -> letzter bekannter Stand mit "Stand: ..." (lebt
+   statt Striche); nie Daten -> ein ruhiger Satz. */
+
+const VITAL_RINGE = [
+  ["schlaf", "Schlaf"],
+  ["readiness", "Ready"],
+  ["fitness", "Fit"]
+];
+const RING_R = 42;                              /* viewBox 0 0 100 100 */
+const RING_UMFANG = 2 * Math.PI * RING_R;
+
+function vitalStufe(wert) {
+  if (typeof wert !== "number" || !isFinite(wert)) return null;
+  return wert >= 80 ? "gruen" : wert >= 50 ? "gold" : "rot";
 }
 
-/* "von heute" oder ehrlich: "Stand: 6. Okt." */
+function zahlDe(wert, nachkomma) {
+  if (typeof wert !== "number" || !isFinite(wert)) return null;
+  return wert.toLocaleString("de-DE",
+    { minimumFractionDigits: nachkomma || 0, maximumFractionDigits: nachkomma || 0 });
+}
+
+function ringKreis(klasse) {
+  const kreis = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+  kreis.setAttribute("cx", "50");
+  kreis.setAttribute("cy", "50");
+  kreis.setAttribute("r", String(RING_R));
+  kreis.setAttribute("class", klasse);
+  return kreis;
+}
+
+function kachelVital(v) {
+  state.kachelDaten["k-vital"] = v || null;
+  const box = $("vital-ringe");
+  const fakten = $("vital-fakten");
+  if (!box || !fakten) return;
+  box.innerHTML = "";
+  fakten.innerHTML = "";
+
+  const scores = VITAL_RINGE.map(([key, label]) => ({
+    key, label,
+    wert: (v && typeof v[key] === "number" && isFinite(v[key]))
+      ? Math.max(0, Math.min(100, Math.round(v[key]))) : null
+  }));
+  const rohDa = v && ((typeof v.schritte === "number" && v.schritte > 0) ||
+                      (typeof v.puls === "number" && v.puls > 0));
+  if (!scores.some((s) => s.wert !== null) && !rohDa) {
+    /* Nie Daten oder nichts Greifbares: ein ruhiger Satz statt Striche */
+    const leer = document.createElement("div");
+    leer.className = "vital-leer";
+    leer.textContent = "Die Uhr meldet sich, sobald neue Werte da sind.";
+    box.append(leer);
+    return;
+  }
+
+  for (const s of scores) {
+    const block = document.createElement("div");
+    block.className = "vital-ring";
+    const stufe = vitalStufe(s.wert);
+    if (stufe) block.classList.add("stufe-" + stufe);
+    const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+    svg.setAttribute("viewBox", "0 0 100 100");
+    svg.append(ringKreis("ring-bahn"));
+    const fuell = ringKreis("ring-fuell");
+    fuell.setAttribute("stroke-dasharray", RING_UMFANG.toFixed(1));
+    fuell.setAttribute("stroke-dashoffset", RING_UMFANG.toFixed(1));
+    svg.append(fuell);
+    const zahl = document.createElementNS("http://www.w3.org/2000/svg", "text");
+    zahl.setAttribute("x", "50");
+    zahl.setAttribute("y", "59");
+    zahl.setAttribute("class", "ring-zahl" + (s.wert === null ? " leer" : ""));
+    zahl.textContent = s.wert === null ? "–" : String(s.wert);
+    svg.append(zahl);
+    const label = document.createElement("div");
+    label.className = "ring-label";
+    label.textContent = s.label;
+    block.append(svg, label);
+    box.append(block);
+    if (s.wert !== null) {
+      /* Fuell-Animation: vom leeren Ring auf den Zielwert */
+      const ziel = RING_UMFANG * (1 - s.wert / 100);
+      requestAnimationFrame(() => requestAnimationFrame(() => {
+        fuell.setAttribute("stroke-dashoffset", ziel.toFixed(1));
+      }));
+    } else {
+      fuell.style.stroke = "rgba(255,255,255,0.05)";
+    }
+  }
+
+  /* Werte-Zeile: Schritte zum Ziel (Balken, eigene Zeile) · darunter
+     Puls/Ruhepuls links, Stand rechts - nichts draengt sich, kein Cut */
+  const heute = (v && Array.isArray(v.verlauf))
+    ? v.verlauf.find((e) => e && e.datum === v.datum) : null;
+  if (v && typeof v.schritte === "number" && v.schritte > 0) {
+    const ziel = (typeof v.schritte_ziel === "number" && v.schritte_ziel > 0)
+      ? v.schritte_ziel : 8000;
+    const schritte = document.createElement("span");
+    schritte.className = "vital-schritte";
+    const label = document.createElement("span");
+    label.className = "vs-label";
+    label.textContent = "Schritte";
+    const zahlEl = document.createElement("span");
+    zahlEl.className = "vs-zahl";
+    zahlEl.textContent = zahlDe(Math.round(v.schritte));
+    const zielEl = document.createElement("span");
+    zielEl.className = "vs-ziel";
+    zielEl.textContent = "/" + ziel;
+    const bahn = document.createElement("span");
+    bahn.className = "vs-bahn";
+    const fuellEl = document.createElement("span");
+    fuellEl.className = "vs-fuell";
+    bahn.append(fuellEl);
+    schritte.append(label, zahlEl, zielEl, bahn);
+    fakten.append(schritte);
+    requestAnimationFrame(() => requestAnimationFrame(() => {
+      fuellEl.style.width =
+        (Math.min(100, (v.schritte / ziel) * 100)).toFixed(1) + "%";
+    }));
+  }
+  const pulsTeile = [];
+  if (v && typeof v.puls_durchschnitt === "number") {
+    pulsTeile.push("Puls ⌀ " + zahlDe(v.puls_durchschnitt, 1));
+  } else if (v && typeof v.puls === "number" && v.puls > 0) {
+    pulsTeile.push("Puls " + Math.round(v.puls));
+  }
+  /* Ruhepuls lebt im Overlay (Rohwerte) - auf der Wand wuerde die Zeile
+     sonst zu "St…" schrumpfen. */
+  const standText = vitalStand(v);
+  if (pulsTeile.length || standText) {
+    const zeile = document.createElement("span");
+    zeile.className = "vital-zeile2";
+    if (pulsTeile.length) {
+      const puls = document.createElement("span");
+      puls.className = "vital-puls";
+      puls.textContent = pulsTeile.join(" · ");
+      zeile.append(puls);
+    }
+    if (standText) {
+      const stand = document.createElement("span");
+      stand.className = "vital-stand";
+      stand.textContent = standText;
+      zeile.append(stand);
+    }
+    fakten.append(zeile);
+  }
+  if (!fakten.children.length) fakten.style.display = "none";
+}
+
+/* "Stand: gerade" - oder ehrlich mit Datum / Alter (Uhr-Quelle weg) */
 function vitalStand(v) {
   if (!v || !v.datum) return "";
-  if (v.datum === heuteStr()) return "von heute";
+  const alt = typeof v.alter === "number" ? v.alter : null;
+  if (alt !== null && alt > 900) {
+    return "Stand: vor " + Math.round(alt / 60) + " Min";
+  }
+  if (v.datum === heuteStr()) return "Stand: gerade";
   const teile = String(v.datum).split("-");
   const d = new Date(Number(teile[0]), Number(teile[1]) - 1, Number(teile[2]));
   if (isNaN(d.getTime())) return "Stand: " + v.datum;
@@ -1570,14 +1682,15 @@ function uptimeMenschlich(sek) {
 }
 
 function kachelWelt(d) {
-  /* SERVER-Kachel: grosse Zahlen CPU/RAM/Disk (+ Temp, falls da),
-     Zeile 2 = Uptime + Dienste-down. Die App-Ampel lebt nur im Overlay. */
+  /* SERVER-Kachel: grosse Zahlen CPU/RAM/Disk, Zeile 2 = Uptime + Temp
+     + Dienste-down (Temp ist Text, damit die 3 grossen Zahlen in die
+     schmale Spalte neben der Markt-Kachel passen, ohne zu wrappen).
+     Die App-Ampel lebt nur im Overlay. */
   const v = d.vital || {};
   const box = $("server-zahlen");
   box.innerHTML = "";
   const werte = [["CPU", v.cpu_prozent], ["RAM", v.ram_prozent],
                  ["Disk", v.disk_prozent]];
-  if (typeof v.temp_celsius === "number") werte.push(["Temp", v.temp_celsius, "°"]);
   let gezeigt = 0;
   for (const [name, wert, einheit] of werte) {
     if (typeof wert !== "number") continue;
@@ -1606,6 +1719,9 @@ function kachelWelt(d) {
   } else if (v.uptime_tage != null) {
     stuecke.push(["Uptime " + v.uptime_tage + " Tage", ""]);
   }
+  if (typeof v.temp_celsius === "number") {
+    stuecke.push([zahlDe(v.temp_celsius, 1) + "°", ""]);
+  }
   const dienste = v.dienste;
   if (dienste && typeof dienste.failed === "number") {
     stuecke.push([dienste.failed + (dienste.failed === 1 ? " Dienst down" : " Dienste down"),
@@ -1623,6 +1739,115 @@ function kachelWelt(d) {
   $("welt-alter").textContent = alter < 300 ? "Stand: gerade geprüft"
     : "Stand: vor " + Math.round(alter / 60) + " Min";
   state.kachelDaten["k-welt"] = d;
+}
+
+/* ---------------- Markt-Ampel: wie ist der Markt? ----------------
+   Kay will sehen, WIE der Markt drauf ist, nicht eine Zahlenwüste:
+   groß das Stimmungswort als Wind-Metapher (RUHIG / LEICHTER WIND /
+   UNRUHIG / STÜRMISCH - VIX-Schwellen 13/20/30, serverseitig in
+   bruecke.markt_stufe berechnet), darunter die Fakten VIX + DAX-
+   Veränderung heute. Quelle: /status -> markt (Yahoo-Finance, 10-Min-
+   Cache). Quelle weg -> letzter Stand mit "Stand: vor X Min"; nie
+   Daten -> ein ruhiger Satz. */
+
+const MARKT_WORTE = {
+  ruhig: "RUHIG",
+  leichter_wind: "LEICHTER WIND",
+  unruhig: "UNRUHIG",
+  stuermisch: "STÜRMISCH"
+};
+
+function kachelMarkt(m) {
+  state.kachelDaten["k-markt"] = m || null;
+  const kachel = $("k-markt");
+  const wort = $("markt-wort");
+  const fakten = $("markt-fakten");
+  const skala = $("markt-skala");
+  const marker = $("markt-marker");
+  if (!kachel || !wort || !fakten) return;
+  for (const stufe of Object.keys(MARKT_WORTE)) {
+    kachel.classList.remove("markt-" + stufe);
+  }
+  kachel.classList.remove("markt-laeuft");
+  const da = m && MARKT_WORTE[m.stufe] && typeof m.vix === "number";
+  if (!da) {
+    wort.textContent = "—";
+    wort.classList.remove("wort-lang");
+    fakten.textContent = "Marktdaten gerade nicht erreichbar";
+    if (skala) skala.classList.add("weg");
+    return;
+  }
+  kachel.classList.add("markt-" + m.stufe, "markt-laeuft");
+  wort.textContent = MARKT_WORTE[m.stufe];
+  wort.classList.toggle("wort-lang", MARKT_WORTE[m.stufe].length > 7);
+  if (skala && marker && typeof m.vix === "number") {
+    /* Skala zeigt 0-40, Zonengrenzen wie die Schwellen (13/20/30) */
+    const anteil = Math.max(0, Math.min(1, m.vix / 40));
+    marker.style.left = (anteil * 100).toFixed(1) + "%";
+    skala.classList.remove("weg");
+  }
+  const teile = [];
+  if (typeof m.vix === "number") teile.push("<b>VIX " + zahlDe(m.vix, 1) + "</b>");
+  if (typeof m.dax_veraenderung === "number") {
+    const p = m.dax_veraenderung;
+    teile.push('DAX <span class="' + (p >= 0 ? "mf-hoch" : "mf-runter") + '">' +
+      (p >= 0 ? "+" : "") + zahlDe(p, 1) + " %</span>");
+  } else if (typeof m.dax === "number") {
+    teile.push("DAX " + zahlDe(m.dax, 0));
+  }
+  if (typeof m.alter === "number" && m.alter > 1200) {
+    teile.push("Stand: vor " + Math.round(m.alter / 60) + " Min");
+  }
+  fakten.innerHTML = teile.join(" · ");
+}
+
+/* Mini-Kurve fuer das Overlay (5 Tages-Schluesse, Gradient wie die Wand) */
+function kurveSvg(werte) {
+  const NS = "http://www.w3.org/2000/svg";
+  const b = 600, h = 90, rand = 10;
+  const zahle = (werte || []).filter((w) => typeof w === "number" && isFinite(w));
+  if (zahle.length < 2) return null;
+  const min = Math.min(...zahle), max = Math.max(...zahle);
+  const spanne = (max - min) || 1;
+  const punkte = zahle.map((w, i) => [
+    rand + (i / (zahle.length - 1)) * (b - 2 * rand),
+    h - rand - ((w - min) / spanne) * (h - 2 * rand)
+  ]);
+  const svg = document.createElementNS(NS, "svg");
+  svg.setAttribute("viewBox", "0 0 " + b + " " + h);
+  svg.setAttribute("class", "ov-kurve");
+  const linie = document.createElementNS(NS, "path");
+  linie.setAttribute("class", "kurve-linie");
+  linie.setAttribute("d", "M" + punkte.map((p) =>
+    p[0].toFixed(1) + " " + p[1].toFixed(1)).join(" L"));
+  svg.append(linie);
+  const flaeche = document.createElementNS(NS, "path");
+  flaeche.setAttribute("class", "kurve-flaeche");
+  flaeche.setAttribute("d", "M" + punkte[0][0].toFixed(1) + " " + (h - rand) +
+    " L" + punkte.map((p) => p[0].toFixed(1) + " " + p[1].toFixed(1)).join(" L") +
+    " L" + punkte[punkte.length - 1][0].toFixed(1) + " " + (h - rand) + " Z");
+  svg.append(flaeche);
+  const ende = punkte[punkte.length - 1];
+  const punkt = document.createElementNS(NS, "circle");
+  punkt.setAttribute("class", "kurve-punkt");
+  punkt.setAttribute("cx", ende[0].toFixed(1));
+  punkt.setAttribute("cy", ende[1].toFixed(1));
+  punkt.setAttribute("r", "5");
+  svg.append(punkt);
+  const start = document.createElementNS(NS, "text");
+  start.setAttribute("class", "kurve-text");
+  start.setAttribute("x", String(rand));
+  start.setAttribute("y", String(rand + 6));
+  start.textContent = zahlDe(zahle[0], zahle[0] < 100 ? 1 : 0);
+  svg.append(start);
+  const ziel = document.createElementNS(NS, "text");
+  ziel.setAttribute("class", "kurve-text");
+  ziel.setAttribute("x", String(b - rand));
+  ziel.setAttribute("y", String(Math.max(rand + 6, ende[1] - 10)));
+  ziel.setAttribute("text-anchor", "end");
+  ziel.textContent = zahlDe(zahle[zahle.length - 1], zahle[zahle.length - 1] < 100 ? 1 : 0);
+  svg.append(ziel);
+  return svg;
 }
 
 /* ---------------- Regenradar (Rainviewer über dunkler Karte) ----------------
@@ -1850,7 +2075,8 @@ function overlayOeffnen(id) {
   const daten = state.kachelDaten[id] || null;
   const label = el.querySelector(".kachel-label");
   $("overlay-label").textContent = label
-    ? (id === "k-welt" ? label.firstChild.textContent : label.textContent)
+    ? (id === "k-welt" || id === "k-markt"
+        ? label.firstChild.textContent : label.textContent)
     : "";
   const inhalt = $("overlay-inhalt");
   inhalt.innerHTML = "";
@@ -2005,13 +2231,117 @@ function overlayOeffnen(id) {
       zeileInOverlay(inhalt, "Hinweis", "Gerade läuft keine Musik.");
     }
   } else if (id === "k-vital" && daten) {
-    zeileInOverlay(inhalt, "Puls", typeof daten.puls === "number" ? Math.round(daten.puls) : null);
-    zeileInOverlay(inhalt, "Schritte", typeof daten.schritte === "number" ? Math.round(daten.schritte) : null);
-    zeileInOverlay(inhalt, "Schlaf-Score", typeof daten.schlaf === "number" ? Math.round(daten.schlaf) : null);
-    zeileInOverlay(inhalt, "Fit-Score", typeof daten.readiness === "number" ? Math.round(daten.readiness) : null);
+    /* Verlauf: 7 Tage als Balkenreihe je Ring, heutiger Tag markiert */
+    const serie = Array.isArray(daten.verlauf)
+      ? daten.verlauf.filter((e) => e && e.datum).slice(-7) : [];
+    for (const [key, label] of VITAL_RINGE) {
+      if (!serie.some((e) => typeof e[key] === "number")) continue;
+      const gruppe = document.createElement("div");
+      gruppe.className = "ov-ring-gruppe";
+      const kopf = document.createElement("div");
+      kopf.className = "ov-balken-kopf";
+      const name = document.createElement("span");
+      name.textContent = label;
+      const heuteEintrag = serie.find((e) => e.datum === daten.datum);
+      const wertHeute = heuteEintrag && typeof heuteEintrag[key] === "number"
+        ? Math.round(heuteEintrag[key]) : null;
+      const stand = document.createElement("b");
+      stand.textContent = wertHeute === null ? "heute —" : "heute " + wertHeute + " / 100";
+      kopf.append(name, stand);
+      const reihe = document.createElement("div");
+      reihe.className = "ov-balken-reihe";
+      const namen = document.createElement("div");
+      namen.className = "ov-balken-name";
+      for (const e of serie) {
+        const da = typeof e[key] === "number";
+        const balken = document.createElement("div");
+        balken.className = "ov-balken" +
+          (da ? " fuell stufe-" + vitalStufe(e[key]) : "") +
+          (e.datum === daten.datum ? " heute" : "");
+        balken.style.height = (da ? Math.max(4, Math.round(e[key])) : 5) + "%";
+        balken.title = e.datum + ": " +
+          (da ? Math.round(e[key]) + " / 100" : "keine Daten");
+        reihe.append(balken);
+        const n = document.createElement("span");
+        n.textContent = wochentagKurz(e.datum);
+        namen.append(n);
+      }
+      gruppe.append(kopf, reihe, namen);
+      inhalt.append(gruppe);
+    }
+    /* Rohwerte von heute (Ruhepuls aus dem heutigen Verlaufseintrag) */
+    const heuteEintrag = serie.find((e) => e.datum === daten.datum);
+    if (typeof daten.schritte === "number") {
+      zeileInOverlay(inhalt, "Schritte",
+        Math.round(daten.schritte) + " von " + (daten.schritte_ziel || 8000));
+    }
+    if (typeof daten.schlaf_minuten === "number") {
+      zeileInOverlay(inhalt, "Schlaf",
+        Math.floor(daten.schlaf_minuten / 60) + " Std " +
+        Math.round(daten.schlaf_minuten % 60) + " Min");
+    }
+    if (typeof daten.puls_durchschnitt === "number") {
+      zeileInOverlay(inhalt, "Puls ⌀", zahlDe(daten.puls_durchschnitt, 1));
+    }
+    if (heuteEintrag && typeof heuteEintrag.ruhepuls === "number") {
+      zeileInOverlay(inhalt, "Ruhepuls", zahlDe(heuteEintrag.ruhepuls, 1));
+    }
+    if (typeof daten.stress === "number") {
+      zeileInOverlay(inhalt, "Stress Ø", zahlDe(daten.stress, 1));
+    }
+    if (typeof daten.spo2_min === "number") {
+      zeileInOverlay(inhalt, "SpO2 min", Math.round(daten.spo2_min) + " %");
+    }
+    if (typeof daten.kalorien === "number") {
+      zeileInOverlay(inhalt, "Kalorien", zahlDe(Math.round(daten.kalorien)));
+    }
     if (daten.datum) zeileInOverlay(inhalt, "Tag", daten.datum);
-    if (!daten.puls && !daten.schritte && !daten.schlaf) {
+    if (typeof daten.alter === "number" && daten.alter > 900) {
+      zeileInOverlay(inhalt, "Hinweis",
+        "Uhr gerade nicht erreichbar - das ist der letzte bekannte Stand.");
+    } else if (!serie.length && !daten.schritte && !daten.schlaf) {
       zeileInOverlay(inhalt, "Hinweis", "Noch keine Werte von der Uhr.");
+    }
+  } else if (id === "k-markt" && daten) {
+    if (typeof daten.vix === "number") {
+      zeileInOverlay(inhalt, "VIX", zahlDe(daten.vix, 1));
+      zeileInOverlay(inhalt, "Stimmung", MARKT_WORTE[daten.stufe] || "—");
+      if (typeof daten.dax === "number") {
+        zeileInOverlay(inhalt, "DAX", zahlDe(daten.dax, 0) + " Punkte");
+      }
+      if (typeof daten.dax_veraenderung === "number") {
+        zeileInOverlay(inhalt, "DAX heute",
+          (daten.dax_veraenderung >= 0 ? "+" : "") +
+          zahlDe(daten.dax_veraenderung, 1) + " %");
+      }
+    } else {
+      const leer = document.createElement("div");
+      leer.className = "ov-leer";
+      leer.textContent = "Marktdaten gerade nicht erreichbar.";
+      inhalt.append(leer);
+    }
+    /* 5-Tage-Kurven: VIX (Angst-Index) + DAX */
+    for (const [name, werte] of [["VIX · 5 Tage", daten.vix_verlauf],
+                                 ["DAX · 5 Tage", daten.dax_verlauf]]) {
+      if (!Array.isArray(werte) || werte.length < 2) continue;
+      const abschnitt = document.createElement("div");
+      abschnitt.className = "ov-abschnitt";
+      abschnitt.textContent = name;
+      inhalt.append(abschnitt);
+      const kurve = kurveSvg(werte);
+      if (kurve) inhalt.append(kurve);
+    }
+    const erklaerung = document.createElement("div");
+    erklaerung.className = "ov-erklaerung";
+    erklaerung.textContent =
+      "VIX = Angst-Index der Börse: niedrig (unter 13) heißt ruhig, " +
+      "hoch (über 30) heißt stürmisch. Die DAX-Zahl zeigt die Veränderung " +
+      "zum Vortag.";
+    inhalt.append(erklaerung);
+    if (typeof daten.alter === "number" && daten.alter > 1200) {
+      zeileInOverlay(inhalt, "Hinweis",
+        "Quelle gerade nicht erreichbar - Stand von vor " +
+        Math.round(daten.alter / 60) + " Min.");
     }
   } else if (id === "k-heizung" && Array.isArray(daten)) {
     for (const z of daten) {
@@ -2251,10 +2581,6 @@ $("foto-btn").addEventListener("click", (ev) => {
   ev.stopPropagation();
   fotoSchalten();
 });
-$("orb").addEventListener("click", (ev) => {
-  ev.stopPropagation();
-  orbTap();
-});
 $("m-play").addEventListener("click", (ev) => {
   ev.stopPropagation();
   musikAktion(state.kachelDaten["k-musik"] && state.kachelDaten["k-musik"].laeuft
@@ -2282,7 +2608,6 @@ $("mikro-btn").addEventListener("click", async (ev) => {
     $("mikro-btn").textContent = "Mikro aktivieren";
     $("mikro-btn").classList.remove("an");
     punktSetzen("", "");
-    $("orb-status").textContent = "Tippen und sprechen";
     return;
   }
   const ok = await mikroAktivieren();
@@ -2348,6 +2673,8 @@ window.gemmaIntern = {
   textSenden,
   orbTap,
   mikroAktivieren,
+  kachelVital,
+  kachelMarkt,
   zustand: () => ({
     ws: !!state.ws, online: state.wsOnline, bereit: state.sessionBereit,
     hoert: state.hoert, mikro: state.mikro.aktiv,

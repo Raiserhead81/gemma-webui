@@ -66,100 +66,48 @@ body {
 }
 .startup-hinweis { margin-top: 1.4rem !important; font-size: 1rem !important; }
 
-/* ---------- Kopf: Uhr + Orb + Verbindung ---------- */
+/* ---------- Kopf: schlank (Uhr links, Schalter + Status rechts).
+   Der Orb ist auf der Echo-Wand eine tote Aktion (Web-Mikro von Amazon
+   blockiert) und ist weg - die Zeile bleibt eine Zeile, die frei gewor-
+  dene Hoehe geht an die Kachel-Reihen. ---------- */
 
 header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 1.2rem 3rem 0.4rem;
+  padding: 0.6rem 3rem 0.1rem;
   gap: 2rem;
+  min-height: 0;
 }
 
+.uhr-block {
+  display: flex;
+  align-items: baseline;
+  gap: 1.6rem;
+  min-width: 0;
+}
 .uhr {
-  font-size: 7.2rem;
+  font-size: 4.6rem;
   font-weight: 800;
   line-height: 1;
   letter-spacing: 0.02em;
   font-variant-numeric: tabular-nums;
 }
 .datum {
-  font-size: 1.8rem;
+  font-size: 1.6rem;
   color: var(--text-dunkel);
-  margin-top: 0.4rem;
   text-transform: capitalize;
-}
-
-.orb-block { display: flex; flex-direction: column; align-items: center; gap: 0.7rem; }
-.orb-status { font-size: 1.35rem; color: var(--text-dunkel); }
-
-.orb {
-  width: 8.6rem;
-  aspect-ratio: 1 / 1;
-  border-radius: 50%;
-  position: relative;
-  border: 0;
-  padding: 0;
-  cursor: pointer;
-  background:
-    radial-gradient(circle at 34% 28%, #d9cfff 0%, var(--akzent-hell) 22%, #7c6cf0 48%, #3a2d9c 78%, #1b1460 100%);
-  box-shadow:
-    0 0 4.5rem rgba(124,108,240,0.5),
-    0 0 1.2rem rgba(185,168,255,0.5),
-    inset 0 0 2rem rgba(255,255,255,0.22);
-  animation: orb-puls 4.5s ease-in-out infinite;
-}
-.orb-kern {
-  position: absolute; inset: 34%;
-  border-radius: 50%;
-  background: radial-gradient(circle at 40% 35%, #ffffff, rgba(255,255,255,0.12) 70%);
-  opacity: 0.75;
-}
-.orb-ring {
-  position: absolute; inset: -0.7rem;
-  border-radius: 50%;
-  border: 0.18rem solid rgba(185,168,255,0.35);
-  border-top-color: var(--cyan);
-  animation: orb-dreh 9s linear infinite;
-}
-.orb.hoert {
-  animation: orb-puls 0.9s ease-in-out infinite;
-  background:
-    radial-gradient(circle at 34% 28%, #ffe1e6 0%, #ff9dac 22%, #ff5c74 48%, #8f1d33 78%, #4a0f1c 100%);
-  box-shadow:
-    0 0 7rem rgba(255,92,116,0.6),
-    0 0 2rem rgba(255,157,172,0.8),
-    inset 0 0 2.4rem rgba(255,255,255,0.35);
-}
-.orb.aktiv {
-  animation: orb-puls 1.1s ease-in-out infinite;
-  box-shadow:
-    0 0 7rem rgba(79,209,197,0.65),
-    0 0 2rem rgba(185,168,255,0.8),
-    inset 0 0 2.4rem rgba(255,255,255,0.35);
-}
-.orb.spricht {
-  animation: orb-puls 1.6s ease-in-out infinite;
-  box-shadow:
-    0 0 7rem rgba(185,168,255,0.75),
-    0 0 2rem rgba(79,209,197,0.7),
-    inset 0 0 2.4rem rgba(255,255,255,0.35);
-}
-.orb.aus { animation: none; filter: grayscale(0.85) brightness(0.5); }
-@keyframes orb-puls {
-  0%, 100% { transform: scale(1); }
-  50% { transform: scale(1.07); }
-}
-@keyframes orb-dreh { to { transform: rotate(360deg); } }
-@media (prefers-reduced-motion: reduce) {
-  .orb, .orb-ring { animation: none !important; }
+  white-space: nowrap;
 }
 
 .verbindungs-block {
   display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: 0.9rem;
+  flex-direction: row;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 1.1rem;
+  min-width: 0;
 }
 .mikro-btn {
   font-size: 1.25rem;
@@ -216,7 +164,11 @@ main {
   text-transform: uppercase;
   color: var(--text-dunkel);
   margin-bottom: 0.7rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
+.kachel-label-zusatz { white-space: nowrap; }
 
 /* Gespräch links, volle Hoehe */
 
@@ -267,7 +219,8 @@ main {
 #k-termine { grid-column: 4; grid-row: 1; }
 #k-radar   { grid-column: 1 / -1; grid-row: 2; }
 #k-wetter  { grid-column: 1 / 3; grid-row: 3; }
-#k-welt    { grid-column: 3 / 5; grid-row: 3; }
+#k-welt    { grid-column: 3; grid-row: 3; }
+#k-markt   { grid-column: 4; grid-row: 3; }
 
 .kachel-wert {
   font-size: 2.5rem;
@@ -543,31 +496,149 @@ body.tab-weg .musik-eq span { animation-play-state: paused; }
   .musik-zeit { font-size: 1.05rem; }
 }
 
-/* Vitaldaten */
+/* ---------- Vitaldaten: drei Tagesringe (Schlaf / Ready / Fit) ----------
+   Ein Ring je Score, konzentrische Fuellung = Wert %, Gradient-Stroke
+   Cyan->Gold wie die Wand, sanfter Glow, Fuell-Animation beim Laden
+   (stroke-dashoffset-Transition, unter prefers-reduced-motion aus).
+   Farbcodierung dezent: nur die Zahl faerbt sich nach Stufe
+   (>= 80 gruen, 50-79 gold, < 50 rot), der Ring bleibt Wand-Gradient. */
 
-.vital-raster {
+#k-vital { display: flex; flex-direction: column; padding: 0.8rem 1.1rem; }
+.vital-ringe {
+  flex: 1;
+  min-height: 0;
   display: flex;
-  justify-content: space-between;
-  gap: 1rem;
+  align-items: stretch;
+  gap: 0.55rem;
 }
-.vital-wert span {
+.vital-ring {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.45rem;
+}
+.vital-ring svg {
+  width: 100%;
+  max-height: 9.6rem;
+  aspect-ratio: 1 / 1;
   display: block;
-  font-size: 3rem;
+  overflow: visible;
+}
+.ring-bahn {
+  fill: none;
+  stroke: rgba(255, 255, 255, 0.09);
+  stroke-width: 9;
+}
+.ring-fuell {
+  fill: none;
+  stroke: url(#ring-verlauf);
+  stroke-width: 9;
+  stroke-linecap: round;
+  transform: rotate(-90deg);
+  transform-origin: 50% 50%;
+  transition: stroke-dashoffset 1.1s cubic-bezier(0.22, 1, 0.36, 1);
+  filter: drop-shadow(0 0 0.45rem rgba(255, 209, 102, 0.30));
+}
+.ring-zahl {
+  font-size: 30px;
   font-weight: 800;
-  line-height: 1.05;
+  text-anchor: middle;
   font-variant-numeric: tabular-nums;
-  background: linear-gradient(180deg, #ffffff, #b9c6dd);
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
+  fill: #eef3fa;
 }
-.vital-wert small {
-  font-size: 1.05rem;
+.vital-ring.stufe-gruen .ring-zahl { fill: var(--gruen); }
+.vital-ring.stufe-gold .ring-zahl { fill: var(--gelb); }
+.vital-ring.stufe-rot .ring-zahl {
+  fill: var(--rot);
+  filter: drop-shadow(0 0 0.5rem rgba(255, 92, 116, 0.55));
+}
+.ring-zahl.leer { fill: #43536e; font-size: 24px; }
+.ring-label {
+  font-size: 0.98rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
   color: var(--text-dunkel);
-  letter-spacing: 0.06em;
+  line-height: 1;
 }
-.vital-raster + .kachel-zusatz { font-size: 1.05rem; }
-.vital-raster .kachel-zusatz { font-size: 1.25rem; margin-top: 0.6rem; }
+
+/* Werte-Zeile unter den Ringen: Zeile 1 = Schritte als Fortschritt zum
+   8000er-Ziel (duenner Balken, volle Breite), Zeile 2 = Puls/Ruhe links,
+   Stand rechts. Zwei klare Zeilen statt Gedraenge - kein Cut. */
+.vital-fakten {
+  flex: none;
+  margin-top: 0.55rem;
+  padding-top: 0.5rem;
+  border-top: 1px solid rgba(34, 48, 71, 0.6);
+  display: flex;
+  flex-direction: column;
+  gap: 0.28rem;
+  min-width: 0;
+  font-size: 1.12rem;
+  color: #c3cfe2;
+}
+.vital-schritte {
+  display: flex;
+  align-items: baseline;
+  gap: 0.45rem;
+  min-width: 0;
+  white-space: nowrap;
+}
+.vs-label {
+  font-size: 0.95rem;
+  letter-spacing: 0.06em;
+  color: var(--text-dunkel);
+  flex: none;
+}
+.vs-zahl { font-weight: 800; font-variant-numeric: tabular-nums; color: #eef3fa; }
+.vs-ziel { color: var(--text-dunkel); font-variant-numeric: tabular-nums; }
+.vs-bahn {
+  flex: 1;
+  min-width: 2.2rem;
+  height: 0.3rem;
+  border-radius: 0.18rem;
+  background: rgba(255, 255, 255, 0.10);
+  overflow: hidden;
+  align-self: center;
+}
+.vs-fuell {
+  height: 100%;
+  width: 0%;
+  border-radius: 0.18rem;
+  background: linear-gradient(90deg, var(--cyan), var(--gelb));
+  box-shadow: 0 0 0.7rem rgba(255, 209, 102, 0.35);
+  transition: width 1.1s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.vital-zeile2 {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.8rem;
+  min-width: 0;
+}
+.vital-puls { color: #c3cfe2; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.vital-stand {
+  font-size: 1rem;
+  color: var(--text-dunkel);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.vital-leer {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-dunkel);
+  font-size: 1.25rem;
+  text-align: center;
+}
+@media (prefers-reduced-motion: reduce) {
+  .ring-fuell, .vs-fuell { transition: none; }
+}
 
 /* Heizung */
 
@@ -968,7 +1039,7 @@ main:not(.ohne-fotos) .gespraech-kachel .kachel-label { letter-spacing: 0.14em; 
   main.ohne-gespraech { grid-template-rows: 26% 1fr; }
   main.ohne-gespraech.ohne-fotos { grid-template-rows: 1fr; }
   .raster { grid-template-columns: 1fr 1fr; grid-template-rows: auto; }
-  #k-musik, #k-vital, #k-heizung, #k-termine, #k-wetter, #k-radar, #k-welt {
+  #k-musik, #k-vital, #k-heizung, #k-termine, #k-wetter, #k-radar, #k-welt, #k-markt {
     grid-column: auto;
     grid-row: auto;
   }
@@ -1168,18 +1239,20 @@ main:not(.ohne-fotos) .gespraech-kachel .kachel-label { letter-spacing: 0.14em; 
 .app-ms { color: var(--text-dunkel); font-variant-numeric: tabular-nums; }
 
 /* ---------- Server-Kachel (ex gemivo-Welt, 09.10.2026) ---------- */
-/* Gleiche grosse-Zahlen-Sprache wie die Vitaldaten-Kachel. */
-.server-zahlen { display: flex; justify-content: space-between; gap: 1.2rem; }
+/* Gleiche grosse-Zahlen-Sprache wie die Vitaldaten-Kachel. Seit der
+   Markt-Kachel in Reihe 3 eine Spalte schmaler: drei Werte (CPU/RAM/
+   Disk) in EINER Reihe ohne Wrap, Temp lebt als Text in Zeile 2. */
+.server-zahlen { display: flex; justify-content: space-between; gap: 0.8rem; flex-wrap: nowrap; }
 .server-zahl small {
   display: block;
-  margin-top: 0.35rem;
-  font-size: 1.05rem;
+  margin-top: 0.2rem;
+  font-size: 0.95rem;
   letter-spacing: 0.06em;
   color: var(--text-dunkel);
 }
 .server-wert {
   display: block;
-  font-size: 3rem;
+  font-size: 2rem;
   font-weight: 800;
   line-height: 1.05;
   font-variant-numeric: tabular-nums;
@@ -1205,3 +1278,176 @@ main:not(.ohne-fotos) .gespraech-kachel .kachel-label { letter-spacing: 0.14em; 
   color: var(--text-dunkel);
 }
 .ov-roh-wert.rot { color: var(--rot); font-weight: 700; }
+
+/* ---------- Markt-Ampel: Wind-Metapher (10.10.2026) ----------
+   GROSS das Stimmungswort (Kay: "nur wie der Markt ist"), darunter die
+   Fakten-Zeile VIX + DAX-Veranderung. Die Skala zeigt, wo der VIX gerade
+   steht (10-40, Zonen = Ampel). Farbwahl: ruhig grun, leichter Wind
+   gold-hell, unruhig gelb, sturmisch rot. */
+.markt-kachel { display: flex; flex-direction: column; }
+.markt-koerper {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 0.7rem;
+}
+.markt-wort-zeile {
+  display: flex;
+  align-items: center;
+  gap: 0.9rem;
+  min-width: 0;
+}
+.markt-wind {
+  width: 3rem;
+  flex: none;
+  color: var(--text-dunkel);
+  opacity: 0.8;
+}
+.markt-wind path {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2.6;
+  stroke-linecap: round;
+  stroke-dasharray: 60;
+  stroke-dashoffset: 0;
+}
+.markt-ruhig .markt-wind { color: var(--gruen); }
+.markt-leichter_wind .markt-wind { color: #ffe08a; }
+.markt-unruhig .markt-wind { color: var(--gelb); }
+.markt-stuermisch .markt-wind { color: var(--rot); }
+.markt-laeuft .markt-wind path { animation: markt-wind 2.4s ease-in-out infinite; }
+.markt-laeuft .markt-wind path:nth-child(2) { animation-delay: -0.5s; }
+.markt-laeuft .markt-wind path:nth-child(3) { animation-delay: -1s; }
+@keyframes markt-wind {
+  0%, 100% { stroke-dashoffset: 0; opacity: 0.85; }
+  50% { stroke-dashoffset: -14; opacity: 0.5; }
+}
+.markt-wort {
+  font-size: 2.3rem;
+  font-weight: 800;
+  line-height: 1.08;
+  letter-spacing: 0.01em;
+  min-width: 0;
+  color: #eef3fa;
+}
+/* lange Worte (LEICHTER WIND, STUERMISCH) duerfen umbrechen, bleiben gross */
+.markt-wort.wort-lang { font-size: 1.9rem; line-height: 1.14; }
+.markt-ruhig .markt-wort { color: var(--gruen); text-shadow: 0 0 1.6rem rgba(61,220,132,0.30); }
+.markt-leichter_wind .markt-wort { color: #ffe08a; text-shadow: 0 0 1.6rem rgba(255,224,138,0.28); }
+.markt-unruhig .markt-wort { color: var(--gelb); text-shadow: 0 0 1.6rem rgba(255,209,102,0.32); }
+.markt-stuermisch .markt-wort { color: var(--rot); text-shadow: 0 0 1.6rem rgba(255,92,116,0.38); }
+.markt-fakten {
+  font-size: 1.3rem;
+  color: #c3cfe2;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.markt-fakten b { color: #eef3fa; font-weight: 800; }
+.markt-fakten .mf-hoch { color: var(--gruen); }
+.markt-fakten .mf-runter { color: var(--rot); }
+
+/* VIX-Skala 10-40: vier Zonen (Ampel), Marker auf dem aktuellen Stand */
+.markt-skala {
+  position: relative;
+  display: flex;
+  height: 0.55rem;
+  border-radius: 0.4rem;
+  overflow: visible;
+}
+.ms-zone { height: 100%; }
+.ms-zone:first-child { border-radius: 0.4rem 0 0 0.4rem; }
+.ms-zone:last-child { border-radius: 0 0.4rem 0.4rem 0; }
+/* Skala 0-40, Zonengrenzen 13/20/30 -> 32.5% / 17.5% / 25% / 25% */
+.ms-zone.ruhig { width: 32.5%; background: rgba(61, 220, 132, 0.32); }
+.ms-zone.wind { width: 17.5%; background: rgba(255, 224, 138, 0.30); }
+.ms-zone.unruhig { width: 25%; background: rgba(255, 209, 102, 0.34); }
+.ms-zone.sturm { width: 25%; background: rgba(255, 92, 116, 0.38); }
+.ms-marker {
+  position: absolute;
+  top: -0.35rem;
+  width: 0.35rem;
+  height: 1.25rem;
+  border-radius: 0.2rem;
+  background: #ffffff;
+  box-shadow: 0 0 0.8rem rgba(255, 255, 255, 0.65);
+  transform: translateX(-50%);
+  transition: left 0.8s ease;
+}
+.markt-skala.weg { visibility: hidden; }
+@media (prefers-reduced-motion: reduce) {
+  .markt-laeuft .markt-wind path { animation: none; }
+  .ms-marker { transition: none; }
+}
+
+/* ---------- Overlay: Bio-Verlauf (7 Tages-Balken je Ring) + Markt-Kurven */
+.ov-ring-gruppe { display: flex; flex-direction: column; gap: 0.3rem; }
+.ov-balken-reihe {
+  display: flex;
+  align-items: flex-end;
+  gap: 0.45rem;
+  height: 4.6rem;
+}
+.ov-balken {
+  flex: 1;
+  min-width: 0;
+  border-radius: 0.3rem 0.3rem 0.12rem 0.12rem;
+  background: rgba(255, 255, 255, 0.10);
+  position: relative;
+}
+.ov-balken.fuell {
+  background: linear-gradient(180deg, var(--cyan), var(--gelb));
+  box-shadow: 0 0 0.6rem rgba(255, 209, 102, 0.22);
+}
+.ov-balken.stufe-gruen.fuell { background: linear-gradient(180deg, #d9ffe9, var(--gruen)); }
+.ov-balken.stufe-gold.fuell { background: linear-gradient(180deg, #fff3d6, var(--gelb)); }
+.ov-balken.stufe-rot.fuell { background: linear-gradient(180deg, #ffdde3, var(--rot)); }
+.ov-balken.heute { outline: 1px solid rgba(255, 255, 255, 0.55); outline-offset: 1px; }
+.ov-balken-name {
+  display: flex;
+  gap: 0.45rem;
+  font-size: 0.95rem;
+  color: var(--text-dunkel);
+}
+.ov-balken-name span {
+  flex: 1;
+  min-width: 0;
+  text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+}
+.ov-balken-kopf {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 1rem;
+  font-size: 1.05rem;
+  color: var(--text-dunkel);
+}
+.ov-balken-kopf b { color: #eef3fa; font-size: 1.25rem; }
+.ov-kurve { width: 100%; height: auto; display: block; }
+.ov-kurve .kurve-linie {
+  fill: none;
+  stroke: url(#kurve-verlauf);
+  stroke-width: 3;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.ov-kurve .kurve-flaeche { fill: url(#kurve-flaeche-verlauf); opacity: 0.16; }
+.ov-kurve .kurve-punkt { fill: #ffffff; }
+.ov-kurve .kurve-text {
+  fill: var(--text-dunkel);
+  font-size: 15px;
+  font-variant-numeric: tabular-nums;
+}
+.ov-erklaerung {
+  font-size: 1.15rem;
+  color: var(--text-dunkel);
+  line-height: 1.45;
+  padding: 0.6rem 0.9rem;
+  border-radius: 0.9rem;
+  background: rgba(124, 108, 240, 0.10);
+}
