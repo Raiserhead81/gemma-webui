@@ -1147,7 +1147,7 @@ function bilderKnopfSetzen() {
   b.textContent = state.bilder ? "Bilder an" : "Bilder aus";
 }
 
-/* ---------------- Vitaldaten: drei Tagesringe ----------------
+/* ---------------- Vitaldaten: drei  ----------------
    SCHLAF / READY / FIT als Ring je Score (Ring-Fuellung = Wert %,
    Gradient-Stroke Cyan->Gold wie die Wand, Zahl im Ring faerbt sich
    dezent nach Stufe: >= 80 gruen, 50-79 gold, < 50 rot). Darunter die
