@@ -1141,45 +1141,162 @@ function kachelHeizung(zonen) {
 }
 
 const TAGE_KURZ = ["So", "Mo", "Di", "Mi", "Do", "Fr", "Sa"];
+const TAGE_LANG = ["Sonntag", "Montag", "Dienstag", "Mittwoch", "Donnerstag",
+                   "Freitag", "Samstag"];
+
+/* ---------------- Termine-Kachel ----------------
+   Mini-Hero für den nächsten Termin (Tag groß dazu, Zeit als große
+   Zahl, Titel vollständig bis 2 Zeilen, Countdown-Chip), darunter
+   max. 2 kompakte Zeilen. Quelle bleibt der Status-Endpunkt
+   (termin_liste, 7 Tage), wird nur anders gezeigt. */
+
+function termineAufbereiten(termine) {
+  /* nur kommende, sortiert nach Tag + Zeit (Quelle kann unsortiert sein) */
+  const heute = heuteStr();
+  const jetzt = new Date();
+  const minJetzt = jetzt.getHours() * 60 + jetzt.getMinutes();
+  return termine.slice().sort((a, b) =>
+      String(a.tag).localeCompare(String(b.tag)) ||
+      String(a.zeit || "").localeCompare(String(b.zeit || ""))
+    ).filter((t) => {
+      if (!t.tag) return false;
+      if (String(t.tag) > heute) return true;
+      if (String(t.tag) < heute) return false;
+      if (t.ganztaegig || !t.zeit) return true;
+      const teile = String(t.zeit).split(":");
+      return (Number(teile[0]) * 60 + Number(teile[1] || 0)) >= minJetzt;
+    });
+}
+
+function terminTag(t) {
+  /* "Heute" / "Morgen" / "Do 15.10." */
+  if (!t.tag) return "—";
+  if (String(t.tag) === heuteStr()) return "Heute";
+  if (String(t.tag) === morgenStr()) return "Morgen";
+  const teile = String(t.tag).split("-");
+  const d = new Date(Number(teile[0]), Number(teile[1]) - 1, Number(teile[2]));
+  return TAGE_KURZ[d.getDay()] + " " + d.getDate() + "." + (d.getMonth() + 1) + ".";
+}
+
+function terminTagLang(t) {
+  /* "Heute · Freitag, 9.10." für die Overlay-Gruppenköpfe */
+  const teile = String(t.tag).split("-");
+  const d = new Date(Number(teile[0]), Number(teile[1]) - 1, Number(teile[2]));
+  const name = TAGE_LANG[d.getDay()] + ", " + d.getDate() + "." + (d.getMonth() + 1) + ".";
+  const tag = String(t.tag);
+  if (tag === heuteStr()) return "Heute · " + name;
+  if (tag === morgenStr()) return "Morgen · " + name;
+  return name;
+}
+
+function terminChip(t) {
+  /* farbiger Countdown: heute "in 2 Std", morgen "in 1 Tag",
+     spaeter "in X Tagen" (das Wochentag-Wort steht gross daneben) */
+  const heute = heuteStr();
+  const tag = String(t.tag);
+  if (tag === heute) {
+    if (t.ganztaegig || !t.zeit) return null;   /* sonst doppelt zu "Heute" */
+    const jetzt = new Date();
+    const teile = String(t.zeit).split(":");
+    const diff = (Number(teile[0]) * 60 + Number(teile[1] || 0))
+      - (jetzt.getHours() * 60 + jetzt.getMinutes());
+    if (diff < 60) return "in " + Math.max(diff, 0) + " Min";
+    return "in " + Math.round(diff / 60) + " Std";
+  }
+  if (tag === morgenStr()) return "in 1 Tag";
+  const teile = tag.split("-");
+  const d = new Date(Number(teile[0]), Number(teile[1]) - 1, Number(teile[2]));
+  const basis = new Date(Number(heute.slice(0, 4)), Number(heute.slice(5, 7)) - 1,
+                         Number(heute.slice(8, 10)));
+  const tage = Math.round((d - basis) / 86400000);
+  return "in " + Math.max(tage, 2) + " Tagen";
+}
 
 function kachelTermine(termine) {
   const box = $("termin-liste");
+  const chipEl = $("termin-chip");
   box.innerHTML = "";
+  box.classList.remove("termin-ist-leer", "hat-weitere");
+  if (chipEl) chipEl.hidden = true;
   state.kachelDaten["k-termine"] = termine || null;
-  if (!termine || !termine.length) {
+  if (!Array.isArray(termine)) {
+    /* Quelle nicht erreichbar: ehrlich leer bleiben statt freien Tag erfinden */
     const leer = document.createElement("div");
     leer.className = "kachel-zusatz";
-    leer.textContent = "nichts geplant";
+    leer.textContent = "Termine gerade nicht erreichbar";
     box.append(leer);
     return;
   }
-  for (const t of termine.slice(0, 4)) {
-    const zeile = document.createElement("div");
-    zeile.className = "termin-zeile";
-    const wann = document.createElement("span");
-    wann.className = "termin-wann";
-    wann.textContent = terminWann(t);
-    const was = document.createElement("span");
-    was.className = "termin-was";
-    was.textContent = t.titel || "—";
-    zeile.append(wann, was);
-    box.append(zeile);
+  const kommend = termineAufbereiten(termine);
+  if (!kommend.length) {
+    box.classList.add("termin-ist-leer");
+    const gross = document.createElement("div");
+    gross.className = "termin-frei";
+    gross.textContent = "Freier Tag";
+    const zusatz = document.createElement("div");
+    zusatz.className = "termin-frei-zusatz";
+    zusatz.textContent = "nichts angesetzt";
+    box.append(gross, zusatz);
+    return;
+  }
+  const erster = kommend[0];
+  const ganztaegig = erster.ganztaegig || !erster.zeit;
+  /* Countdown-Chip oben rechts in der Label-Zeile (wie die Musik-Tasten) */
+  if (chipEl) {
+    const chipText = terminChip(erster);
+    if (chipText) {
+      chipEl.hidden = false;
+      chipEl.className = "termin-chip " + terminChipFarbe(erster);
+      chipEl.textContent = chipText;
+    }
+  }
+  /* Mini-Hero: Wochentag + grosse Zeit auf einer Zeile, Titel darunter */
+  const hero = document.createElement("div");
+  hero.className = "termin-hero";
+  const zeile = document.createElement("div");
+  zeile.className = "termin-hero-zeile";
+  const tag = document.createElement("span");
+  tag.className = "termin-hero-tag" + (ganztaegig ? " flach" : "");
+  tag.textContent = ganztaegig ? "ganztägig" : terminTag(erster);
+  const gross = document.createElement("span");
+  gross.className = "termin-hero-gross" + (ganztaegig ? " wort" : "");
+  gross.textContent = ganztaegig ? terminTag(erster) : erster.zeit;
+  zeile.append(tag, gross);
+  const titel = document.createElement("div");
+  titel.className = "termin-hero-titel";
+  titel.textContent = erster.titel || "—";
+  hero.append(zeile, titel);
+  box.append(hero);
+  /* bis zu 2 weitere Termine als kompakte Zeilen; dann rückt der Titel
+     auf eine Zeile zusammen, damit nichts abgeschnitten wird */
+  const weitere = kommend.slice(1, 3);
+  if (weitere.length) {
+    box.classList.add("hat-weitere");
+    const rest = document.createElement("div");
+    rest.className = "termin-rest";
+    for (const t of weitere) {
+      const klein = document.createElement("div");
+      klein.className = "termin-klein";
+      const kleinTag = document.createElement("span");
+      kleinTag.className = "tk-tag";
+      kleinTag.textContent = terminTag(t);
+      const kleinZeit = document.createElement("span");
+      kleinZeit.className = "tk-zeit";
+      kleinZeit.textContent = (t.ganztaegig || !t.zeit) ? "ganztägig" : t.zeit;
+      const kleinTitel = document.createElement("span");
+      kleinTitel.className = "tk-titel";
+      kleinTitel.textContent = t.titel || "—";
+      klein.append(kleinTag, kleinZeit, kleinTitel);
+      rest.append(klein);
+    }
+    box.append(rest);
   }
 }
 
-function terminWann(t) {
-  if (!t.tag) return "—";
-  const teile = String(t.tag).split("-");
-  const d = new Date(Number(teile[0]), Number(teile[1]) - 1, Number(teile[2]));
-  const heute = heuteStr();
-  const morgen = new Date();
-  morgen.setDate(morgen.getDate() + 1);
-  let name;
-  if (String(t.tag) === heute) name = "heute";
-  else if (String(t.tag) === morgenStr()) name = "morgen";
-  else name = TAGE_KURZ[d.getDay()] + " " + d.getDate() + "." + (d.getMonth() + 1) + ".";
-  if (t.ganztaegig) return name;
-  return name + (t.zeit ? ", " + t.zeit : "");
+function terminChipFarbe(t) {
+  if (String(t.tag) === heuteStr()) return "gold";
+  if (String(t.tag) === morgenStr()) return "cyan";
+  return "grau";
 }
 
 function morgenStr() {
@@ -1807,8 +1924,28 @@ function overlayOeffnen(id) {
       zeileInOverlay(inhalt, z.name || "—", `${ist} ist · ${soll} soll`);
     }
   } else if (id === "k-termine" && Array.isArray(daten)) {
-    for (const t of daten) {
-      zeileInOverlay(inhalt, terminWann(t), t.titel || "—");
+    const kommend = termineAufbereiten(daten).slice(0, 10);
+    if (!kommend.length) {
+      const leer = document.createElement("div");
+      leer.className = "ov-leer";
+      leer.textContent = "Keine Termine in den nächsten 7 Tagen.";
+      inhalt.append(leer);
+    }
+    let tag = null;
+    for (const t of kommend) {
+      if (String(t.tag) !== tag) {
+        tag = String(t.tag);
+        const kopf = document.createElement("div");
+        kopf.className = "ov-abschnitt";
+        kopf.textContent = terminTagLang(t);
+        inhalt.append(kopf);
+      }
+      zeileInOverlay(inhalt,
+        (t.ganztaegig || !t.zeit) ? "ganztägig" : t.zeit, t.titel || "—");
+    }
+    if (kommend.length) {
+      meta = kommend.length + (kommend.length === 1 ? " Termin" : " Termine")
+        + " · kommende 7 Tage";
     }
   } else {
     const leer = document.createElement("div");

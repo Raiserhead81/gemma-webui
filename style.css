@@ -381,19 +381,19 @@ main {
 
 /* Heizung */
 
-.heizung-liste, .termin-liste {
+.heizung-liste {
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
 }
-.heizung-zeile, .termin-zeile {
+.heizung-zeile {
   display: flex;
   justify-content: space-between;
   align-items: baseline;
   gap: 1rem;
   font-size: 1.35rem;
 }
-.heizung-name, .termin-was {
+.heizung-name {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -403,11 +403,170 @@ main {
   font-variant-numeric: tabular-nums;
   flex: none;
 }
-.termin-wann {
-  color: var(--cyan);
+
+/* ---------- Termine: Mini-Hero + kompakte Zeilen ----------
+   Gleiche Zahlensprache wie Vital/Server (grosse Zahl, Gradient-Text),
+   Gold als Akzent fuer den Tag, Countdown-Chip in der Label-Zeile.
+   Die Kachel ist hoch wie die anderen Reihe-1-Kacheln (~11rem), deshalb:
+   mehrere Termine -> Titel auf einer Zeile + 2 kompakte Zeilen,
+   nur ein Termin -> grosse Zeit + Titel mit bis zu 2 Zeilen. */
+
+#k-termine {
+  display: flex;
+  flex-direction: column;
+  padding: 0.8rem 1.3rem;
+}
+.termin-kopf {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  min-width: 0;
+}
+.termin-kopf .kachel-label { margin-bottom: 0; }
+.termin-liste { flex: 1; min-height: 0; margin-top: 0.15rem; }
+
+.termin-chip {
   flex: none;
-  font-size: 1.25rem;
+  font-size: 0.95rem;
+  font-weight: 700;
+  line-height: 1;
+  padding: 0.26rem 0.75rem;
+  border-radius: 1.2rem;
   font-variant-numeric: tabular-nums;
+  background: rgba(143,163,189,0.12);
+  border: 1px solid rgba(143,163,189,0.3);
+  color: var(--text-dunkel);
+}
+.termin-chip.gold {
+  background: rgba(255,209,102,0.13);
+  border-color: rgba(255,209,102,0.5);
+  color: var(--gelb);
+}
+.termin-chip.cyan {
+  background: rgba(79,209,197,0.12);
+  border-color: rgba(79,209,197,0.42);
+  color: var(--cyan);
+}
+
+.termin-hero { min-width: 0; }
+.termin-hero-zeile {
+  display: flex;
+  align-items: baseline;
+  gap: 0.55rem;
+  min-width: 0;
+}
+.termin-hero-tag {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: 1.05rem;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--gelb);
+  white-space: nowrap;
+}
+.termin-hero-gross {
+  flex: none;
+  font-size: 3.1rem;
+  font-weight: 800;
+  line-height: 1;
+  letter-spacing: -0.01em;
+  font-variant-numeric: tabular-nums;
+  background-image: linear-gradient(180deg, #ffffff, #b9c6dd);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+/* ganztägig: kein Zeitwert daneben, Wort darf flacher und breiter sein */
+.termin-hero-tag.flach {
+  text-transform: none;
+  letter-spacing: 0.02em;
+  font-size: 1.05rem;
+}
+.termin-hero-gross.wort { font-size: 2.6rem; }
+.termin-hero-titel {
+  margin-top: 0.3rem;
+  font-size: 1.3rem;
+  font-weight: 600;
+  line-height: 1.28;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+}
+
+/* mehrere Termine: Titel faellt auf eine Zeile, Zeit etwas kleiner */
+.termin-liste.hat-weitere .termin-hero-gross { font-size: 2.5rem; }
+.termin-liste.hat-weitere .termin-hero-titel {
+  display: block;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: 1.15rem;
+}
+
+.termin-rest {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  min-width: 0;
+  margin-top: 0.3rem;
+  padding-top: 0.3rem;
+  border-top: 1px solid rgba(34,48,71,0.6);
+}
+.termin-klein {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  font-size: 1.05rem;
+  line-height: 1.15;
+  min-width: 0;
+}
+.termin-klein .tk-tag {
+  flex: none;
+  color: var(--text-dunkel);
+  white-space: nowrap;
+}
+.termin-klein .tk-zeit {
+  flex: none;
+  color: var(--cyan);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.termin-klein .tk-titel {
+  flex: 1;
+  min-width: 0;
+  color: #c3cfe2;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Leer-Fall: ruhig, zentriert, nicht kaputt */
+.termin-liste.termin-ist-leer {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+.termin-frei {
+  font-size: 2.4rem;
+  font-weight: 800;
+  line-height: 1.1;
+  letter-spacing: -0.01em;
+  background-image: linear-gradient(180deg, #dfe7f2, #7d90ab);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  width: fit-content;
+}
+.termin-frei-zusatz {
+  margin-top: 0.45rem;
+  font-size: 1.25rem;
+  color: var(--text-dunkel);
 }
 
 /* ---------- Fuss ---------- */
