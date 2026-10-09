@@ -288,69 +288,259 @@ main {
   color: #3a4a66;
 }
 
-/* Musik: Tasten kompakt oben rechts neben dem Label, darunter
-   Cover + Titel. Passt so sicher in die schmale 4er-Reihe. */
+/* Musik-Kachel, episch: Cover als dunkel ueberblendeter Hintergrund,
+   scharfes Cover links (Ruhe-Zustand: Platzhalter, gleiche Geometrie -
+   kein Sprung beim Start), grosser Titel, 6-Balken-Equalizer (rein CSS,
+   nur bei laeuft animiert), duenner Fortschrittsbalken mit Zeiten.
+   Die Kachel ist in der 4er-Reihe schmal (~17 rem): Basis = kompakt,
+   ueber Container-Query skaliert der gleiche Aufbau fuer breite Layouts. */
+
+.musik { overflow: hidden; container: musik / inline-size; }
+
+.musik-bg {
+  position: absolute;
+  inset: -1.2rem;
+  background-size: cover;
+  background-position: center;
+  filter: blur(1.5rem) saturate(1.35) brightness(0.95);
+  transform: scale(1.18);
+  opacity: 0;
+  transition: opacity 1s ease;
+  pointer-events: none;
+}
+.musik-laeuft .musik-bg { opacity: 0.85; }
+.musik-bg-dunkel {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg,
+    rgba(10,14,20,0.38) 0%, rgba(10,14,20,0.58) 55%, rgba(10,14,20,0.82) 100%);
+  pointer-events: none;
+}
+.musik-laeuft {
+  border-color: rgba(124,108,240,0.40);
+  box-shadow: 0 0 2.6rem rgba(124,108,240,0.20);
+}
+
+.musik-body {
+  position: relative;
+  z-index: 1;
+  height: 100%;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+}
+.musik {
+  padding: 0.9rem 1.2rem;
+}
 
 .musik-kopf {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 1rem;
-  margin-bottom: 0.2rem;
+  gap: 0.8rem;
 }
-.musik-kopf .kachel-label { margin-bottom: 0; }
-.musik-zeile {
-  display: flex;
-  align-items: center;
-  gap: 1rem;
-}
-.musik-cover {
-  width: 3.4rem;
-  height: 3.4rem;
-  border-radius: 0.6rem;
-  object-fit: cover;
-  background: #0d1420;
-  flex: none;
-}
-.musik-text { min-width: 0; flex: 1; }
-.musik-text .kachel-wert {
-  font-size: 2.2rem;
-  line-height: 1.05;
-}
-.musik-text .kachel-wert,
-.musik-text .kachel-zusatz {
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.musik-tasten {
+.musik-label-zeile {
   display: flex;
   align-items: center;
   gap: 0.7rem;
+  min-width: 0;
+}
+.musik-kopf .kachel-label { margin-bottom: 0; }
+.musik-geraet {
+  font-size: 0.95rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: #bfe9e2;
+  background: rgba(79,209,197,0.12);
+  border: 1px solid rgba(79,209,197,0.30);
+  border-radius: 2rem;
+  padding: 0.14rem 0.75rem;
+  max-width: 12rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: none;
+}
+
+/* Glass-Tasten oben rechts, Play als markantester Kreis */
+.musik-tasten {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
   flex: none;
 }
 .taste {
-  width: 2.8rem;
-  height: 2.8rem;
+  width: 2.35rem;
+  height: 2.35rem;
   border-radius: 50%;
-  border: 1px solid var(--karte-rand);
-  background: rgba(124,108,240,0.14);
+  border: 1px solid rgba(255,255,255,0.16);
+  background: rgba(255,255,255,0.08);
+  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
   color: var(--text);
-  font-size: 1.2rem;
+  font-size: 1.05rem;
   cursor: pointer;
   line-height: 1;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   padding: 0;
+  transition: transform 0.15s ease, background 0.15s ease;
 }
-.taste:active { background: rgba(124,108,240,0.35); }
+.taste:active {
+  background: rgba(255,255,255,0.20);
+  transform: scale(0.93);
+}
 .taste-gross {
-  width: 3.8rem;
-  height: 3.8rem;
-  font-size: 1.5rem;
-  background: linear-gradient(135deg, var(--akzent), #5a4ad0);
+  width: 2.95rem;
+  height: 2.95rem;
+  font-size: 1.2rem;
+  color: #fff;
+  background: linear-gradient(140deg, var(--akzent) 0%, #5a4ad0 48%, var(--cyan) 135%);
   border: 0;
+  box-shadow: 0 0.3rem 1.4rem rgba(124,108,240,0.45),
+    inset 0 1px 0 rgba(255,255,255,0.28);
+}
+
+/* Hero: Cover + Titel/Kuenstler + Equalizer */
+.musik-hero {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  align-items: center;
+  gap: 0.8rem;
+}
+.musik-cover {
+  width: 3.3rem;
+  height: 3.3rem;
+  border-radius: 0.6rem;
+  object-fit: cover;
+  background: #0d1420;
+  flex: none;
+  box-shadow: 0 0.5rem 1.6rem rgba(0,0,0,0.55), 0 0 0 1px rgba(255,255,255,0.10);
+}
+.musik-cover-platz {
+  width: 3.3rem;
+  height: 3.3rem;
+  border-radius: 0.6rem;
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.5rem;
+  color: #43536e;
+  background: rgba(255,255,255,0.04);
+  border: 1px dashed rgba(255,255,255,0.12);
+}
+.musik-laeuft .musik-cover-platz { display: none; }
+.musik-text { min-width: 0; flex: 1; }
+.musik-titel {
+  font-size: 1.35rem;
+  font-weight: 800;
+  line-height: 1.14;
+  letter-spacing: -0.01em;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.musik-laeuft .musik-titel { text-shadow: 0 2px 1.2rem rgba(0,0,0,0.6); }
+.musik-kuenstler {
+  font-size: 1rem;
+  color: var(--text-dunkel);
+  margin-top: 0.25rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.musik-laeuft .musik-kuenstler { color: #aebfd6; }
+
+/* Equalizer: 6 Balken, Cyan/Gold, animiert nur wenn Musik laeuft */
+.musik-eq {
+  display: flex;
+  align-items: flex-end;
+  gap: 0.22rem;
+  height: 2.7rem;
+  flex: none;
+}
+.musik-eq span {
+  width: 0.3rem;
+  height: 100%;
+  border-radius: 0.18rem;
+  background: linear-gradient(180deg, var(--gelb) 0%, #7ee8c9 55%, var(--cyan) 100%);
+  transform: scaleY(0.3);
+  transform-origin: bottom;
+  opacity: 0.4;
+}
+.musik-leer .musik-eq span { opacity: 0.3; }
+.musik-laeuft .musik-eq span { opacity: 1; animation: musik-eq 1s ease-in-out infinite alternate; }
+.musik-laeuft .musik-eq span:nth-child(1) { animation-duration: 0.82s; animation-delay: -0.10s; }
+.musik-laeuft .musik-eq span:nth-child(2) { animation-duration: 1.15s; animation-delay: -0.45s; }
+.musik-laeuft .musik-eq span:nth-child(3) { animation-duration: 0.93s; animation-delay: -0.70s; }
+.musik-laeuft .musik-eq span:nth-child(4) { animation-duration: 1.28s; animation-delay: -0.25s; }
+.musik-laeuft .musik-eq span:nth-child(5) { animation-duration: 0.87s; animation-delay: -0.55s; }
+@keyframes musik-eq {
+  0%   { transform: scaleY(0.22); }
+  50%  { transform: scaleY(1); }
+  100% { transform: scaleY(0.38); }
+}
+
+/* Fortschritt: Zeiten flankieren die duenne Bahn (spart eine Zeile),
+   Tick rechnet zwischen den Polls hoch, Poll synct wieder */
+.musik-transport {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+.musik-zeit {
+  font-size: 0.95rem;
+  color: var(--text-dunkel);
+  font-variant-numeric: tabular-nums;
+  flex: none;
+  min-width: 2.4rem;
+}
+.musik-zeit:last-child { text-align: right; }
+.musik-bahn {
+  flex: 1;
+  height: 0.3rem;
+  border-radius: 0.18rem;
+  background: rgba(255,255,255,0.10);
+  overflow: hidden;
+}
+.musik-fuell {
+  height: 100%;
+  width: 0%;
+  border-radius: 0.18rem;
+  background: linear-gradient(90deg, var(--cyan), var(--gelb));
+  box-shadow: 0 0 0.7rem rgba(255,209,102,0.35);
+  transition: width 0.95s linear;
+}
+.musik-leer .musik-zeit { opacity: 0.55; }
+
+/* Tab unsichtbar: Balken einfrieren (Rechenlast sparen) */
+body.tab-weg .musik-eq span { animation-play-state: paused; }
+@media (prefers-reduced-motion: reduce) {
+  .musik-laeuft .musik-eq span { animation: none; transform: scaleY(0.65); }
+}
+
+/* Breites Layout (Kachel > 26 rem, z.B. 2-Spalten-Raster am kleinen
+   Display): gleicher Aufbau, gross geschnitten, Geraet-Chip mit Platz */
+@container musik (min-width: 26rem) {
+  .musik { padding: 1.2rem 1.5rem; }
+  .musik-body { gap: 0.8rem; }
+  .musik-geraet { display: inline-block; }
+  .taste { width: 3rem; height: 3rem; font-size: 1.25rem; }
+  .taste-gross { width: 4.1rem; height: 4.1rem; font-size: 1.65rem; }
+  .musik-cover, .musik-cover-platz { width: 5.4rem; height: 5.4rem; border-radius: 0.8rem; }
+  .musik-cover-platz { font-size: 2.3rem; }
+  .musik-titel { font-size: 2.05rem; }
+  .musik-kuenstler { font-size: 1.25rem; margin-top: 0.35rem; }
+  .musik-eq { height: 3.4rem; gap: 0.3rem; }
+  .musik-eq span { width: 0.42rem; border-radius: 0.22rem; }
+  .musik-bahn { height: 0.36rem; }
+  .musik-zeit { font-size: 1.05rem; }
 }
 
 /* Vitaldaten */

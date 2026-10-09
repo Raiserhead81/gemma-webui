@@ -57,20 +57,37 @@
   </section>
 
   <section class="raster">
-    <div class="kachel" id="k-musik">
-      <div class="musik-kopf">
-        <div class="kachel-label">Musik</div>
-        <div class="musik-tasten">
-          <button class="taste" id="m-vorher" type="button" aria-label="Vorheriger Titel">&#9198;</button>
-          <button class="taste taste-gross" id="m-play" type="button" aria-label="Abspielen oder Pause">&#9654;</button>
-          <button class="taste" id="m-naechster" type="button" aria-label="Nächster Titel">&#9197;</button>
+    <div class="kachel musik musik-leer" id="k-musik">
+      <!-- Cover als dunkler Hintergrund (nur wenn Musik laeuft + Bilder an) -->
+      <div id="musik-bg" class="musik-bg" aria-hidden="true"></div>
+      <div class="musik-bg-dunkel" aria-hidden="true"></div>
+      <div class="musik-body">
+        <div class="musik-kopf">
+          <div class="musik-label-zeile">
+            <div class="kachel-label">Musik</div>
+            <span id="musik-geraet" class="musik-geraet" hidden></span>
+          </div>
+          <div class="musik-tasten">
+            <button class="taste" id="m-vorher" type="button" aria-label="Vorheriger Titel">&#9198;</button>
+            <button class="taste taste-gross" id="m-play" type="button" aria-label="Abspielen oder Pause">&#9654;</button>
+            <button class="taste" id="m-naechster" type="button" aria-label="Nächster Titel">&#9197;</button>
+          </div>
         </div>
-      </div>
-      <div class="musik-zeile">
-        <img id="musik-cover" class="musik-cover" alt="" hidden>
-        <div class="musik-text">
-          <div id="musik-titel" class="kachel-wert">—</div>
-          <div id="musik-kuenstler" class="kachel-zusatz">—</div>
+        <div class="musik-hero">
+          <div id="musik-cover-platz" class="musik-cover-platz" aria-hidden="true">&#9834;</div>
+          <img id="musik-cover" class="musik-cover" alt="" hidden>
+          <div class="musik-text">
+            <div id="musik-titel" class="musik-titel">Nichts läuft</div>
+            <div id="musik-kuenstler" class="musik-kuenstler">—</div>
+          </div>
+          <div id="musik-eq" class="musik-eq" aria-hidden="true">
+            <span></span><span></span><span></span><span></span><span></span>
+          </div>
+        </div>
+        <div class="musik-transport">
+          <span id="musik-pos" class="musik-zeit">–:––</span>
+          <div class="musik-bahn"><div id="musik-fuell" class="musik-fuell"></div></div>
+          <span id="musik-dauer" class="musik-zeit">–:––</span>
         </div>
       </div>
     </div>

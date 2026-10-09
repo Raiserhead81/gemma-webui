@@ -72,6 +72,9 @@ const state = {
   lockSentinel: null,
   video: null,
   kachelDaten: {},
+  /* Musik: letzter Stand + Zeitpunkt, damit der Fortschritt zwischen
+     den Polls selbst weiterlaeuft und beim Poll wieder angesynced wird */
+  musik: null,
   verlaufMsgs: [],
   denkEnde: 0
 };
@@ -1017,30 +1020,123 @@ function fotoKnopfSetzen() {
 }
 
 function kachelMusik(m) {
+  const kachel = $("k-musik");
   const titel = $("musik-titel");
   const kuenstler = $("musik-kuenstler");
   const cover = $("musik-cover");
+  const bg = $("musik-bg");
+  const platz = $("musik-cover-platz");
+  const chip = $("musik-geraet");
+  const vorher = state.kachelDaten["k-musik"];
   state.kachelDaten["k-musik"] = m || null;
-  if (!m || (!m.verbunden && !m.titel)) {
-    titel.textContent = "nicht verbunden";
-    kuenstler.textContent = "Musik läuft woanders oder ist aus";
-    if (!cover.hidden) cover.hidden = true;
-    $("m-play").innerHTML = "&#9654;";
-    return;
+
+  const leert = !m || (!m.verbunden && !m.titel);
+  const laeuft = !!(m && m.laeuft && m.titel);
+
+  /* Fortschritt: Position + Zeitpunkt merken, Tick rechnet hoch.
+     Gleiche Datenlage nochmal zeichnen (z.B. Bilder-Schalter): Laufenden
+     Stand behalten, statt auf die Poll-Position zurueckzuspringen. */
+  const gleich = (vorher === m && state.musik && state.musik.laeuft === laeuft);
+  state.musik = {
+    posMs: gleich ? state.musik.posMs
+      : ((m && typeof m.position_ms === "number" && isFinite(m.position_ms))
+        ? m.position_ms : 0),
+    dauerMs: (m && typeof m.dauer_ms === "number" && m.dauer_ms > 0)
+      ? m.dauer_ms : 0,
+    laeuft,
+    sync: gleich ? state.musik.sync : Date.now()
+  };
+
+  kachel.classList.toggle("musik-laeuft", laeuft);
+  kachel.classList.toggle("musik-leer", !!leert);
+
+  /* Kopf: Titel gross, Kuenstler darunter, Geraet als Chip wenn da.
+     Fehlerfall (Spotify weg) bleibt ruhig - kein Rot, kein Alarm. */
+  if (leert) {
+    titel.textContent = "Nichts läuft";
+    kuenstler.textContent = m ? "Spotify aus" : "Spotify offline";
+  } else {
+    titel.textContent = m.titel || "Nichts läuft";
+    kuenstler.textContent = m.titel
+      ? (m.kuenstler || "—")
+      : (m.verbunden ? "Spotify bereit" : "Spotify aus");
   }
-  titel.textContent = m.titel || "nichts läuft";
-  kuenstler.textContent = m.titel
-    ? ([m.kuenstler, m.geraet].filter(Boolean).join(" · ") || "—")
-    : (m.verbunden ? "Spotify ist verbunden" : "Musik ist aus");
-  /* Bilder-Schalter: AUS = Bild gar nicht erst laden (nur Text) */
-  if (state.bilder && m.cover) {
-    if (cover.getAttribute("src") !== m.cover) cover.src = m.cover;
-    cover.hidden = false;
+  if (m && m.geraet) {
+    chip.textContent = m.geraet;
+    chip.hidden = false;
+  } else {
+    chip.hidden = true;
+  }
+
+  /* Cover: scharf links + als dunkler Hintergrund. Bilder-Schalter AUS
+     = gar nicht erst laden. Lade-Fehler: ruhig zum Platzhalter. */
+  if (state.bilder && m && m.cover) {
+    if (cover.getAttribute("src") !== m.cover) {
+      delete cover.dataset.fehlt;
+      cover.onload = () => {
+        if (bg.getAttribute("data-cover") === cover.getAttribute("src")) {
+          bg.style.backgroundImage = 'url("' + cover.getAttribute("src") + '")';
+        }
+      };
+      cover.onerror = () => {
+        cover.dataset.fehlt = "ja";
+        cover.hidden = true;
+        bg.style.backgroundImage = "";
+      };
+      cover.src = m.cover;
+      bg.setAttribute("data-cover", m.cover);
+    }
+    if (!cover.dataset.fehlt) {
+      cover.hidden = false;
+      platz.hidden = true;
+      if (cover.complete && cover.naturalWidth > 0 &&
+          bg.getAttribute("data-cover") === cover.getAttribute("src")) {
+        bg.style.backgroundImage = 'url("' + cover.getAttribute("src") + '")';
+      }
+    } else {
+      platz.hidden = false;
+      bg.style.backgroundImage = "";
+    }
   } else {
     cover.removeAttribute("src");
     cover.hidden = true;
+    platz.hidden = false;
+    bg.style.backgroundImage = "";
+    bg.removeAttribute("data-cover");
   }
-  $("m-play").innerHTML = m.laeuft ? "&#9208;" : "&#9654;";
+
+  $("m-play").innerHTML = laeuft ? "&#9208;" : "&#9654;";
+  musikFortschrittZeichnen();
+}
+
+/* Zeit als m:ss (oder h:mm:ss), ohne Daten: Strich-Fassung */
+function musikZeit(ms) {
+  if (!(typeof ms === "number" && isFinite(ms) && ms > 0)) return "–:––";
+  const s = Math.floor(ms / 1000);
+  const h = Math.floor(s / 3600);
+  const min = Math.floor((s % 3600) / 60);
+  const sek = s % 60;
+  return (h ? h + ":" + String(min).padStart(2, "0") : String(min)) +
+    ":" + String(sek).padStart(2, "0");
+}
+
+function musikFortschrittZeichnen() {
+  const d = state.musik;
+  if (!d) return;
+  let pos = d.posMs;
+  if (d.laeuft) pos += Date.now() - d.sync;
+  if (d.dauerMs > 0 && pos > d.dauerMs) pos = d.dauerMs;
+  if (pos < 0) pos = 0;
+  $("musik-pos").textContent = musikZeit(pos);
+  $("musik-dauer").textContent = d.dauerMs > 0 ? musikZeit(d.dauerMs) : "–:––";
+  $("musik-fuell").style.width =
+    (d.dauerMs > 0 ? Math.min(100, (pos / d.dauerMs) * 100) : 0).toFixed(2) + "%";
+}
+
+/* Zwischen den Polls: 1x pro Sekunde weiterrechnen (nicht im Hintergrund) */
+function musikTakt() {
+  if (document.hidden || !state.musik || !state.musik.laeuft) return;
+  musikFortschrittZeichnen();
 }
 
 function bilderSchalten() {
@@ -2073,7 +2169,10 @@ async function lockStarten() {
 }
 
 document.addEventListener("visibilitychange", () => {
+  /* Equalizer-Balken einfrieren, solange das Display den Tab schläft */
+  document.body.classList.toggle("tab-weg", document.hidden);
   if (!document.hidden) {
+    musikFortschrittZeichnen();
     state.lockTyp = null;
     state.lockSentinel = null;
     if (state.video) state.video.pause();
@@ -2222,6 +2321,7 @@ tonAnzeige();
 $("haupt").classList.toggle("ohne-fotos", !state.fotos);
 if (state.fotos) fotoZeigen();
 setInterval(uhrTicken, 1000);
+setInterval(musikTakt, 1000);
 setInterval(orbTakt, 1000);
 setInterval(wiedergabeTakt, 250);
 setInterval(wachenTakt, 2000);
