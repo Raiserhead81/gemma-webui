@@ -1935,18 +1935,40 @@ function wettStatusHolen() {
 function kachelWett(d) {
   state.kachelDaten["k-wett"] = d || null;
   const bank = $("wett-bank");
+  const diff = $("wett-diff");
+  const offen = $("wett-offen");
+  const bilanz = $("wett-bilanz");
   const kenn = $("wett-kennzahlen");
-  const liste = $("wett-liste");
   const alter = $("wett-alter");
-  if (!bank || !kenn || !liste) return;
+  if (!bank || !diff || !offen || !bilanz || !kenn) return;
   if (!d || typeof d.bank !== "number") {
     bank.textContent = "—";
-    kenn.textContent = "Wettbot gerade nicht erreichbar";
+    diff.textContent = "";
+    offen.textContent = "Wettbot gerade nicht erreichbar";
+    bilanz.textContent = "";
+    kenn.textContent = "";
     return;
   }
+  /* Guthaben gross + Gewinn/Verlust gegenueber 100 EUR Start */
   bank.textContent = zahlDe(d.bank, 2).replace(".", ",") + " €";
   bank.classList.toggle("wett-plus", d.bank >= 100);
   bank.classList.toggle("wett-minus", d.bank < 100);
+  const delta = d.bank - 100;
+  diff.textContent = (delta >= 0 ? "+" : "-") +
+    zahlDe(Math.abs(delta), 2).replace(".", ",") + " €";
+  diff.className = "wett-diff " + (delta >= 0 ? "mf-hoch" : "mf-runter");
+  /* Offene Einsaetze: Summe + Anzahl */
+  const oEins = (typeof d.offene_einsaetze === "number") ? d.offene_einsaetze : 0;
+  const nOffen = d.wetten_offen || 0;
+  offen.innerHTML = "Offen <b>" + zahlDe(oEins, 2).replace(".", ",") +
+    " €</b> · " + nOffen + " Wetten";
+  /* Bilanz: W / L / Trefferquote */
+  const w = d.wins || 0, l = d.losses || 0;
+  const ges = w + l;
+  const quote = ges ? Math.round((w / ges) * 100) : null;
+  bilanz.innerHTML = "Bilanz <b>" + w + " W</b> · " + l + " L" +
+    (quote != null ? " · " + quote + " %" : "");
+  /* ROI + CLV kurz, plus offene Kombi-Scheine */
   const teile = [];
   if (d.roi != null) {
     teile.push('ROI <span class="' + (d.roi >= 0 ? "mf-hoch" : "mf-runter") + '">' +
@@ -1956,33 +1978,9 @@ function kachelWett(d) {
     teile.push('CLV <span class="' + (d.clv_avg >= 0 ? "mf-hoch" : "mf-runter") + '">' +
       (d.clv_avg >= 0 ? "+" : "") + zahlDe(d.clv_avg * 100, 1) + " %</span>");
   }
-  if (d.w_l) teile.push("W-L " + d.w_l);
-  if (d.kill) teile.push('<span class="mf-runter">KILL</span>');
-  kenn.innerHTML = teile.length ? teile.join(" · ") : "noch keine settled Wetten";
-  const offen = Array.isArray(d.offene_wetten) ? d.offene_wetten : [];
-  liste.innerHTML = "";
-  if (!offen.length) {
-    const z = document.createElement("div");
-    z.className = "kachel-zusatz";
-    z.textContent = "keine offenen Wetten";
-    liste.append(z);
-  } else {
-    for (const w of offen.slice(0, 5)) {
-      const z = document.createElement("div");
-      z.className = "wett-zeile";
-      const quot = (typeof w.price === "number") ? "@" + zahlDe(w.price, 2) : "";
-      z.innerHTML = '<span class="wett-sport">' + (w.sport || "?") + '</span>' +
-        '<span class="wett-match">' + (w.match || "—") + '</span>' +
-        '<span class="wett-markt">' + (w.market || "") + " " + quot + '</span>';
-      liste.append(z);
-    }
-    if (offen.length > 5) {
-      const mehr = document.createElement("div");
-      mehr.className = "kachel-zusatz";
-      mehr.textContent = "+" + (offen.length - 5) + " weitere (antippen)";
-      liste.append(mehr);
-    }
-  }
+  const nKombis = (d.offene_kombis || []).length;
+  if (nKombis) teile.push(nKombis + " Scheine");
+  kenn.innerHTML = teile.join(" · ") || "noch keine settled Wetten";
   if (alter && d.updated_at) {
     const t = Date.parse(d.updated_at);
     if (isFinite(t)) {
