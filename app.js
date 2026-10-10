@@ -55,6 +55,7 @@ const state = {
   wachNeustarts: 0,
   wachAudioLebt: false,
   wachVideoLebt: false,
+  statusOkZuletzt: 0,   /* Watchdog: letzter erfolgreicher /status-Abruf */
   /* Mikrofon */
   mikro: { stream: null, ctx: null, knoten: null, stumm: null, aktiv: false,
            vorlauf: [], rest: null },
@@ -468,10 +469,26 @@ function silkWacheStarten() {
   } catch (e) { silkAudio = null; }
 }
 
+function silkWacheAnstossen() {
+  /* Gestoppte Wache sofort weiterlaufen lassen. Fire OS pausiert oder
+     entsorgt das Audio-Element gelegentlich - solange nur "paused" ist,
+     reicht play(); ist das Element tot, baut der 60-s-Takt es neu. */
+  if (!SILK) return;
+  if (!silkAudio) { silkWacheStarten(); return; }
+  if (!silkAudio.paused) return;
+  try {
+    silkAudio.currentTime = 0;
+    const p = silkAudio.play();
+    if (p && p.catch) p.catch(() => {});
+  } catch (e) { silkAudio = null; silkWacheStarten(); }
+}
+
 function audioWacheStarten() {
   /* Auf Kays Silk ist die Silk-Wache die ALLEINIGE Audio-Wache - hier
-     keinen eigenen Oszillator starten (Doppel-Audio). */
-  if (SILK) { silkWacheStarten(); return; }
+     keinen eigenen Oszillator starten (Doppel-Audio). Anstossen gilt auch
+     fuer den Fall, dass die Wache pausiert wurde (statt nur beim ersten
+     Mal zu laufen). */
+  if (SILK) { silkWacheAnstossen(); return; }
   if (state.wachen) {
     if (state.wachen.state === "suspended") {
       state.wachen.resume().catch(() => {});
@@ -572,6 +589,105 @@ setInterval(() => {
     if (p && p.catch) p.catch(() => {});
   }
 }, 300000);
+
+/* 60-s-Takt: Silk-Wache wirklich pruefen, nicht nur anfassen. Bleibt sie
+   pausiert, obwohl silkWacheAnstossen() play() gerufen hat, ist das Element
+   tot (Fire OS stoppt Audio gelegentlich ganz) - dann wegwerfen und neu
+   bauen, statt ewig eine Leiche zu juken. */
+setInterval(() => {
+  if (!SILK || !silkAudio || !silkAudio.paused) return;
+  silkWacheAnstossen();
+  setTimeout(() => {
+    if (!silkAudio || !silkAudio.paused) return;
+    try {
+      silkAudio.removeAttribute("src");
+      silkAudio.load();
+    } catch (e) { /* egal, wird eh ersetzt */ }
+    if (silkAudio.parentNode) silkAudio.parentNode.removeChild(silkAudio);
+    silkAudio = null;
+    wachMarkieren("audio-neubau");
+    silkWacheStarten();
+  }, 3000);
+}, 60000);
+
+/* ---------------- Selbst-Refresh: Code- und Datenstand ----------------
+   Die Show laeuft tagelang ohne Nutzer-Interaktion. Damit geaenderter Code
+   (app.js/style.css/index.html) ueberhaupt ankommt und ein haengender
+   Status sich nicht ewig festfrisst:
+   - alle 5 Min HEAD auf index.html; ETag/Last-Modified anders als beim
+     Laden => stille location.reload(). NUR origin-relativ (fetches mit
+     kay:...@-URL sind auf Chromium kaputt - Basic-Auth-Falle).
+   - Status-Watchdog: 3 Min keine erfolgreiche /status-Antwort => Reload.
+   Beide Wege teilen sich den Loop-Schutz: max 3 Reloads in 10 Min
+   (sessionStorage, ueberlebt reload), danach 30 Min Pause. Der
+   Deep-Link-Hash (#kiosk) ueberlebt location.reload() automatisch. */
+
+const SELBST_REFRESH = {
+  codeTakt: 300000,      /* Code-Check alle 5 Min */
+  watchTakt: 60000,      /* Watchdog alle 60 s */
+  statusGrenze: 180000,  /* 3 Min ohne /status-OK => Reload */
+  fenster: 600000,       /* Reload-Fenster 10 Min */
+  maxReloads: 3,
+  pause: 1800000,        /* 30 Min Pause nach dem letzten Reload */
+  codeStand: null
+};
+
+function reloadLogLesen() {
+  try {
+    const arr = JSON.parse(sessionStorage.getItem("gemma_reload_log") || "[]");
+    return Array.isArray(arr) ? arr.filter((t) => typeof t === "number") : [];
+  } catch (e) { return []; }
+}
+
+function reloadErlaubt() {
+  const jetzt = Date.now();
+  const log = reloadLogLesen().filter((t) => jetzt - t < SELBST_REFRESH.fenster);
+  if (log.length < SELBST_REFRESH.maxReloads) return true;
+  return jetzt - log[log.length - 1] >= SELBST_REFRESH.pause;
+}
+
+function selbstReload(grund) {
+  if (!reloadErlaubt()) return;
+  const log = reloadLogLesen().filter((t) => Date.now() - t < SELBST_REFRESH.fenster);
+  log.push(Date.now());
+  try {
+    sessionStorage.setItem("gemma_reload_log", JSON.stringify(log));
+    sessionStorage.setItem("gemma_reload_grund",
+      grund + " " + new Date().toLocaleTimeString("de-DE"));
+  } catch (e) { /* sessionStorage verweigert: reload ohne Schutz ist schlimmer */ }
+  location.reload();
+}
+
+async function codeStandHolen() {
+  try {
+    const r = await fetch(location.origin + "/index.html?selfrefresh=" + Date.now(),
+      { method: "HEAD", cache: "no-store" });
+    if (!r.ok) return null;
+    return r.headers.get("etag") || r.headers.get("last-modified") || "";
+  } catch (e) {
+    return null;                       /* Netz weg: kein Blind-Reload */
+  }
+}
+
+async function codePruefen() {
+  const stand = await codeStandHolen();
+  if (stand === null) return;
+  if (SELBST_REFRESH.codeStand === null) {
+    SELBST_REFRESH.codeStand = stand;  /* Basis: Stand beim Laden */
+    return;
+  }
+  if (stand && SELBST_REFRESH.codeStand && stand !== SELBST_REFRESH.codeStand) {
+    SELBST_REFRESH.codeStand = stand;
+    selbstReload("code-stand");
+  }
+}
+
+function statusWatchdog() {
+  if (!CFG.token || !state.statusOkZuletzt) return;
+  if (Date.now() - state.statusOkZuletzt > SELBST_REFRESH.statusGrenze) {
+    selbstReload("status-still");
+  }
+}
 
 function tonAnzeige() {
   const el = $("ton");
@@ -937,6 +1053,7 @@ async function statusHolen() {
   } catch (e) {
     return;
   }
+  state.statusOkZuletzt = Date.now();   /* Watchdog: Datenleitung lebt */
   if (d.klang && d.klang.ziel) {
     const vorher = state.klang;
     state.klang = d.klang.ziel;
@@ -2506,8 +2623,10 @@ document.addEventListener("visibilitychange", () => {
     state.lockTyp = null;
     state.lockSentinel = null;
     if (state.video) state.video.pause();
-    /* Wachen sofort zurueckholen (kein Suspend - Kill sichtbar zaehlen) */
+    /* Wachen sofort zurueckholen (kein Suspend - Kill sichtbar zaehlen).
+       media.mp3-Loop dabei explizit neu anstossen, falls er gestorben ist. */
     audioWacheStarten();
+    silkWacheAnstossen();
     lockStarten();
     wakeVerbinden();
     statusHolen();
@@ -2653,11 +2772,15 @@ setInterval(wachenTakt, 2000);
 setInterval(statusHolen, Math.max(15, CFG.statusSek) * 1000);
 setInterval(wetterHolen, 600000);
 if (ZEIGE_GESPRAECH) setInterval(verlaufPoll, 30000);
+setInterval(codePruefen, SELBST_REFRESH.codeTakt);
+setInterval(statusWatchdog, SELBST_REFRESH.watchTakt);
 startupPruefen();
 lockStarten();
 kachelnKlickbarMachen();
+state.statusOkZuletzt = Date.now();   /* Watchdog-Grundlinie: ab Laden */
 statusHolen();
 wetterHolen();
+codePruefen();
 if (ZEIGE_GESPRAECH) verlaufPoll();
 radarKachelStart();
 let radarGroesseTimer = null;
