@@ -1476,21 +1476,28 @@ const TAGE_LANG = ["Sonntag", "Montag", "Dienstag", "Mittwoch", "Donnerstag",
    (termin_liste, 7 Tage), wird nur anders gezeigt. */
 
 function termineAufbereiten(termine) {
-  /* nur kommende, sortiert nach Tag + Zeit (Quelle kann unsortiert sein) */
+  /* ab heute, sortiert nach Tag + Zeit (Quelle kann unsortiert sein).
+     Heute bleibt IMMER drin - auch wenn die Uhrzeit vorbei ist ("vorbei
+     ist vorbei", Kay will den ganzen Tag sehen). Nur Tage VOR heute
+     fliegen raus, und Termine ganz ohne Tag. */
   const heute = heuteStr();
-  const jetzt = new Date();
-  const minJetzt = jetzt.getHours() * 60 + jetzt.getMinutes();
   return termine.slice().sort((a, b) =>
       String(a.tag).localeCompare(String(b.tag)) ||
       String(a.zeit || "").localeCompare(String(b.zeit || ""))
     ).filter((t) => {
       if (!t.tag) return false;
-      if (String(t.tag) > heute) return true;
-      if (String(t.tag) < heute) return false;
-      if (t.ganztaegig || !t.zeit) return true;
-      const teile = String(t.zeit).split(":");
-      return (Number(teile[0]) * 60 + Number(teile[1] || 0)) >= minJetzt;
+      return String(t.tag) >= heute;
     });
+}
+
+function terminIstVergangen(t) {
+  /* heutiger Termin, dessen Zeit schon vorbei ist (ganztaegig nie) */
+  if (!t || String(t.tag) !== heuteStr()) return false;
+  if (t.ganztaegig || !t.zeit) return false;
+  const teile = String(t.zeit).split(":");
+  const jetzt = new Date();
+  return (Number(teile[0]) * 60 + Number(teile[1] || 0))
+    < (jetzt.getHours() * 60 + jetzt.getMinutes());
 }
 
 function terminTag(t) {
@@ -1525,7 +1532,14 @@ function terminChip(t) {
     const teile = String(t.zeit).split(":");
     const diff = (Number(teile[0]) * 60 + Number(teile[1] || 0))
       - (jetzt.getHours() * 60 + jetzt.getMinutes());
-    if (diff < 60) return "in " + Math.max(diff, 0) + " Min";
+    if (diff < 0) {
+      /* vergangener heutiger Termin bleibt sichtbar, Chip zählt ehrlich
+         rückwärts ("vor 10 Min"), Farbe grau (terminChipFarbe) */
+      const vor = -diff;
+      if (vor < 60) return "vor " + vor + " Min";
+      return "vor " + Math.round(vor / 60) + " Std";
+    }
+    if (diff < 60) return "in " + diff + " Min";
     return "in " + Math.round(diff / 60) + " Std";
   }
   if (tag === morgenStr()) return "in 1 Tag";
@@ -1619,6 +1633,7 @@ function kachelTermine(termine) {
 }
 
 function terminChipFarbe(t) {
+  if (terminIstVergangen(t)) return "grau";   /* vorbei ist vorbei */
   if (String(t.tag) === heuteStr()) return "gold";
   if (String(t.tag) === morgenStr()) return "cyan";
   return "grau";
@@ -2606,7 +2621,7 @@ function overlayOeffnen(id) {
     }
     if (kommend.length) {
       meta = kommend.length + (kommend.length === 1 ? " Termin" : " Termine")
-        + " · kommende 7 Tage";
+        + " · ab heute (7 Tage)";
     }
   } else {
     const leer = document.createElement("div");
