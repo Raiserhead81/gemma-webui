@@ -1918,6 +1918,82 @@ function kachelMarkt(m) {
   fakten.innerHTML = teile.join(" · ");
 }
 
+/* ---------------- AIBet: Wettbot Paper (virtuell) ----------------
+   Kay: Guthaben gross oben, darunter kompakt die offenen Wetten
+   (naechste 5 + "+N weitere"), Kennzahlen-Zeile ROI/CLV/W-L.
+   Quelle: /wettbot-status/status.json (LAN-only, gleiche Herkunft,
+   kein Token noetig). Alle 5 Min neu; Quelle weg -> letzter Stand. */
+
+function wettStatusHolen() {
+  fetch(location.origin + "/wettbot-status/status.json",
+        { cache: "no-store" })
+    .then((r) => (r.ok ? r.json() : null))
+    .then((d) => kachelWett(d))
+    .catch(() => {});
+}
+
+function kachelWett(d) {
+  state.kachelDaten["k-wett"] = d || null;
+  const bank = $("wett-bank");
+  const kenn = $("wett-kennzahlen");
+  const liste = $("wett-liste");
+  const alter = $("wett-alter");
+  if (!bank || !kenn || !liste) return;
+  if (!d || typeof d.bank !== "number") {
+    bank.textContent = "—";
+    kenn.textContent = "Wettbot gerade nicht erreichbar";
+    return;
+  }
+  bank.textContent = zahlDe(d.bank, 2).replace(".", ",") + " €";
+  bank.classList.toggle("wett-plus", d.bank >= 100);
+  bank.classList.toggle("wett-minus", d.bank < 100);
+  const teile = [];
+  if (d.roi != null) {
+    teile.push('ROI <span class="' + (d.roi >= 0 ? "mf-hoch" : "mf-runter") + '">' +
+      (d.roi >= 0 ? "+" : "") + zahlDe(d.roi * 100, 1) + " %</span>");
+  }
+  if (d.clv_avg != null) {
+    teile.push('CLV <span class="' + (d.clv_avg >= 0 ? "mf-hoch" : "mf-runter") + '">' +
+      (d.clv_avg >= 0 ? "+" : "") + zahlDe(d.clv_avg * 100, 1) + " %</span>");
+  }
+  if (d.w_l) teile.push("W-L " + d.w_l);
+  if (d.kill) teile.push('<span class="mf-runter">KILL</span>');
+  kenn.innerHTML = teile.length ? teile.join(" · ") : "noch keine settled Wetten";
+  const offen = Array.isArray(d.offene_wetten) ? d.offene_wetten : [];
+  liste.innerHTML = "";
+  if (!offen.length) {
+    const z = document.createElement("div");
+    z.className = "kachel-zusatz";
+    z.textContent = "keine offenen Wetten";
+    liste.append(z);
+  } else {
+    for (const w of offen.slice(0, 5)) {
+      const z = document.createElement("div");
+      z.className = "wett-zeile";
+      const quot = (typeof w.price === "number") ? "@" + zahlDe(w.price, 2) : "";
+      z.innerHTML = '<span class="wett-sport">' + (w.sport || "?") + '</span>' +
+        '<span class="wett-match">' + (w.match || "—") + '</span>' +
+        '<span class="wett-markt">' + (w.market || "") + " " + quot + '</span>';
+      liste.append(z);
+    }
+    if (offen.length > 5) {
+      const mehr = document.createElement("div");
+      mehr.className = "kachel-zusatz";
+      mehr.textContent = "+" + (offen.length - 5) + " weitere (antippen)";
+      liste.append(mehr);
+    }
+  }
+  if (alter && d.updated_at) {
+    const t = Date.parse(d.updated_at);
+    if (isFinite(t)) {
+      const min = Math.round((Date.now() - t) / 60000);
+      alter.textContent = min < 5 ? "Stand: gerade aktualisiert"
+        : "Stand: vor " + min + " Min";
+    }
+  }
+}
+
+
 /* Mini-Kurve fuer das Overlay (5 Tages-Schluesse, Gradient wie die Wand) */
 function kurveSvg(werte) {
   const NS = "http://www.w3.org/2000/svg";
@@ -2460,6 +2536,50 @@ function overlayOeffnen(id) {
         "Quelle gerade nicht erreichbar - Stand von vor " +
         Math.round(daten.alter / 60) + " Min.");
     }
+  } else if (id === "k-wett" && daten) {
+    if (typeof daten.bank === "number") {
+      zeileInOverlay(inhalt, "Guthaben (virtuell)",
+        zahlDe(daten.bank, 2).replace(".", ",") + " €");
+      zeileInOverlay(inhalt, "Peak / Drawdown",
+        zahlDe(daten.peak || 0, 2).replace(".", ",") + " € · " +
+        zahlDe((daten.drawdown || 0) * 100, 1) + " %");
+      if (daten.roi != null) {
+        zeileInOverlay(inhalt, "ROI", (daten.roi >= 0 ? "+" : "") +
+          zahlDe(daten.roi * 100, 1) + " %");
+      }
+      if (daten.clv_avg != null) {
+        zeileInOverlay(inhalt, "CLV-Mittel", (daten.clv_avg >= 0 ? "+" : "") +
+          zahlDe(daten.clv_avg * 100, 1) + " %");
+      }
+      if (daten.w_l) zeileInOverlay(inhalt, "W-L", daten.w_l);
+      zeileInOverlay(inhalt, "Wetten", (daten.wetten_gesamt || 0) +
+        " gesamt · " + (daten.wetten_offen || 0) + " offen");
+    }
+    const ab = document.createElement("div");
+    ab.className = "ov-abschnitt";
+    ab.textContent = "Abgerechnet (letzte)";
+    inhalt.append(ab);
+    const abg = Array.isArray(daten.letzte_settled) ? daten.letzte_settled : [];
+    if (!abg.length) {
+      const leer = document.createElement("div");
+      leer.className = "ov-leer";
+      leer.textContent = "Noch nichts abgerechnet.";
+      inhalt.append(leer);
+    }
+    for (const s of abg.slice(0, 12)) {
+      zeileInOverlay(inhalt,
+        (s.match || "—") + " · " + (s.market || ""),
+        (s.score || "—") + " → " + (s.status || "—") +
+        " · " + (typeof s.pnl === "number"
+          ? (s.pnl >= 0 ? "+" : "") + zahlDe(s.pnl, 2).replace(".", ",") + " €" : "—"));
+    }
+    const erk = document.createElement("div");
+    erk.className = "ov-erklaerung";
+    erk.textContent =
+      "Wettbot Paper: nur virtuelles Geld (100 € Start). Wette nur wenn " +
+      "Modell-Edge (EV > 1,05), Einsatz 1/4-Kelly, max 2 % der Bank. " +
+      "CLV misst, ob die Quote beim Setzen besser war als am Schluss.";
+    inhalt.append(erk);
   } else if (id === "k-heizung" && Array.isArray(daten)) {
     for (const z of daten) {
       const ist = (typeof z.ist === "number") ? z.ist.toFixed(1).replace(".", ",") + "°" : "—";
@@ -2769,6 +2889,8 @@ setInterval(musikTakt, 1000);
 setInterval(orbTakt, 1000);
 setInterval(wiedergabeTakt, 250);
 setInterval(wachenTakt, 2000);
+setInterval(wettStatusHolen, 300000);
+wettStatusHolen();
 setInterval(statusHolen, Math.max(15, CFG.statusSek) * 1000);
 setInterval(wetterHolen, 600000);
 if (ZEIGE_GESPRAECH) setInterval(verlaufPoll, 30000);
