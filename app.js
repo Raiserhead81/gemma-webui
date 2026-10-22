@@ -1508,6 +1508,139 @@ function heizungWunschVon(name) {
   return undefined;
 }
 
+/* --- SVG-Symbole fuer die Heizungs-Kachel (Episch-Runde 22.10.) ---
+   Echte Sonne (goldener Kern mit radialer Glorie, 10 Strahlen mit
+   runden Enden, Korona) und echte Flammen-Silhouette (orange
+   Aussenflamme, blau-tealer Gasflammen-Kern) statt CSS-Blobs. Die
+   Farbverlaeufe hängen EINMAL im Dokument (#sg-defs / #ff-defs), alle
+   Instanzen referenzieren sie - kachelHeizung baut die Kachel alle
+   2 Minuten neu, deshalb der Einmal-Guard. */
+
+let sgDefsvorhanden = false;
+function sgDefsEinmal() {
+  if (sgDefsvorhanden || document.getElementById("sg-defs")) return;
+  sgDefsvorhanden = true;
+  const halt = document.createElement("div");
+  halt.innerHTML =
+    "<svg id='sg-defs' width='0' height='0' style='position:absolute' aria-hidden='true'><defs>" +
+    "<radialGradient id='sg-kern' cx='38%' cy='34%' r='82%'>" +
+    "<stop offset='0%' stop-color='#fff9dd'/>" +
+    "<stop offset='40%' stop-color='#ffe08d'/>" +
+    "<stop offset='76%' stop-color='#ffb84d'/>" +
+    "<stop offset='100%' stop-color='#e0871f'/>" +
+    "</radialGradient>" +
+    /* Spar-Variante (tado-Sprache: Ziel unter 19 Grad = gruen) */
+    "<radialGradient id='sg-kern-gruen' cx='38%' cy='34%' r='82%'>" +
+    "<stop offset='0%' stop-color='#effff7'/>" +
+    "<stop offset='40%' stop-color='#b2f0d0'/>" +
+    "<stop offset='76%' stop-color='#5fcf97'/>" +
+    "<stop offset='100%' stop-color='#2f9e6c'/>" +
+    "</radialGradient>" +
+    "<radialGradient id='sg-glorie' cx='50%' cy='50%' r='50%'>" +
+    "<stop offset='44%' stop-color='rgba(255,190,80,0)'/>" +
+    "<stop offset='72%' stop-color='rgba(255,178,64,0.34)'/>" +
+    "<stop offset='100%' stop-color='rgba(255,158,40,0)'/>" +
+    "</radialGradient>" +
+    "<radialGradient id='sg-glorie-gruen' cx='50%' cy='50%' r='50%'>" +
+    "<stop offset='44%' stop-color='rgba(111,227,178,0)'/>" +
+    "<stop offset='72%' stop-color='rgba(111,227,178,0.3)'/>" +
+    "<stop offset='100%' stop-color='rgba(95,217,164,0)'/>" +
+    "</radialGradient>" +
+    "<linearGradient id='sg-strahl' x1='0%' y1='0%' x2='100%' y2='100%'>" +
+    "<stop offset='0%' stop-color='#ffeab0'/>" +
+    "<stop offset='100%' stop-color='#eda230'/>" +
+    "</linearGradient>" +
+    "<linearGradient id='sg-strahl-gruen' x1='0%' y1='0%' x2='100%' y2='100%'>" +
+    "<stop offset='0%' stop-color='#c8f5dd'/>" +
+    "<stop offset='100%' stop-color='#46b98a'/>" +
+    "</linearGradient>" +
+    "</defs></svg>";
+  document.body.appendChild(halt.firstChild);
+}
+
+let ffDefsvorhanden = false;
+function ffDefsEinmal() {
+  if (ffDefsvorhanden || document.getElementById("ff-defs")) return;
+  ffDefsvorhanden = true;
+  const halt = document.createElement("div");
+  halt.innerHTML =
+    "<svg id='ff-defs' width='0' height='0' style='position:absolute' aria-hidden='true'><defs>" +
+    "<linearGradient id='ff-aussengrad' x1='0%' y1='0%' x2='0%' y2='100%'>" +
+    "<stop offset='0%' stop-color='#ffdd8f'/>" +
+    "<stop offset='34%' stop-color='#ff9a3c'/>" +
+    "<stop offset='72%' stop-color='#f2611c'/>" +
+    "<stop offset='100%' stop-color='#c94a12'/>" +
+    "</linearGradient>" +
+    "<linearGradient id='ff-kerngrad' x1='0%' y1='0%' x2='0%' y2='100%'>" +
+    "<stop offset='0%' stop-color='#a5efff'/>" +
+    "<stop offset='55%' stop-color='#43cdea'/>" +
+    "<stop offset='100%' stop-color='#1596c9'/>" +
+    "</linearGradient>" +
+    "</defs></svg>";
+  document.body.appendChild(halt.firstChild);
+}
+
+/* Sonne: Glorie (weiche Aussen-Korona), 10 Strahlen (runde Enden, wie
+   ein hochwertiges Wetter-Icon, --i = Index fuer das Heiz-Lauflicht)
+   und goldener Kern. spar=true: tado-Spar-Ziel (unter 19 Grad) in
+   Gruen statt Gold. */
+function svgSonne(spar) {
+  sgDefsEinmal();
+  const kernG = spar ? "sg-kern-gruen" : "sg-kern";
+  const strahlG = spar ? "sg-strahl-gruen" : "sg-strahl";
+  const glorieG = spar ? "sg-glorie-gruen" : "sg-glorie";
+  let strahlen = "";
+  for (let i = 0; i < 10; i++) {
+    const a = (i * 36) * Math.PI / 180;
+    const sin = Math.sin(a), cos = Math.cos(a);
+    strahlen += "<line class='sg-r' style='--i:" + i + "' x1='" +
+      (50 + 30 * sin).toFixed(2) + "' y1='" + (50 - 30 * cos).toFixed(2) +
+      "' x2='" + (50 + 43.5 * sin).toFixed(2) + "' y2='" +
+      (50 - 43.5 * cos).toFixed(2) + "'/>";
+  }
+  return "<svg class='sonne-svg' viewBox='0 0 100 100' aria-hidden='true'>" +
+    "<circle class='sg-glorie' cx='50' cy='50' r='46' fill='url(#" + glorieG + ")'/>" +
+    "<g class='sg-strahlen' stroke='url(#" + strahlG + ")'>" + strahlen + "</g>" +
+    "<circle class='sg-kern' cx='50' cy='50' r='20' fill='url(#" + kernG + ")'/>" +
+    "</svg>";
+}
+
+/* Haus (tado-Sprache: Soll unter Ist, es wird NICHT geheizt) — dezente
+   Kontur statt einer grauen "toten" Sonne, Status-Punkt atmet leise. */
+function svgHaus() {
+  return "<svg class='haus-svg' viewBox='0 0 100 100' aria-hidden='true'>" +
+    "<g class='hs-linien'>" +
+    "<path d='M20 51 L50 25 L80 51'/>" +
+    "<path d='M29 46.5 L29 76 L71 76 L71 46.5'/>" +
+    "<path d='M43 76 L43 59.5 L57 59.5 L57 76'/>" +
+    "</g>" +
+    "<circle class='hs-punkt' cx='50' cy='88' r='3.4'/>" +
+    "</svg>";
+}
+
+/* tado-Intensitaet: 1-3 wellige Linien nach flammeStaerke()-Heuristik. */
+function wellenStufe(s) {
+  return s >= 1.08 ? 3 : (s >= 0.9 ? 2 : 1);
+}
+function svgWellen() {
+  const berge = " q3.5 -4.5 7 0 t7 0 t7 0 t7 0";
+  return "<svg class='hz-wellen' viewBox='0 0 30 17' aria-hidden='true'>" +
+    "<path class='hw w3' d='M2 4.5" + berge + "'/>" +
+    "<path class='hw w2' d='M2 9.5" + berge + "'/>" +
+    "<path class='hw w1' d='M2 14.5" + berge + "'/>" +
+    "</svg>";
+}
+
+/* Flamme: züngelnde Silhouette (Spitze leicht gekrümmt, Schulter
+   asymmetrisch) + Gasflammen-Kern. Pfade in viewBox 0 0 60 82. */
+function svgFlamme() {
+  ffDefsEinmal();
+  return "<svg class='flamme-svg' viewBox='0 0 60 82' aria-hidden='true'>" +
+    "<path class='ff-aussen' fill='url(#ff-aussengrad)' d='M31.5 3.5 C29.5 13 35.8 18.8 42.2 26.3 C48.8 34 51 43.5 48.4 52.8 C45.4 63.5 38.6 72.6 29.8 76.6 C21.2 72.6 14.6 63.5 11.8 52.8 C9.4 43.5 11.8 34 18.4 26.3 C24.8 18.8 30.4 12.6 31.5 3.5 Z'/>" +
+    "<path class='ff-kern' fill='url(#ff-kerngrad)' d='M30.3 36 C33.4 43.6 39.6 48.8 40.1 57.2 C40.6 66.6 36 72.6 29.8 74.9 C23.6 72.6 19.1 66.6 19.6 57.2 C20.1 48.8 26.3 43.6 30.3 36 Z'/>" +
+    "</svg>";
+}
+
 function kachelHeizung(zonen) {
   const box = $("heizung-liste");
   const kachel = $("k-heizung");
@@ -1563,15 +1696,27 @@ function kachelHeizung(zonen) {
         const staerke = flammeStaerke(ze);
         symbol.style.setProperty("--fstaerke", staerke.toFixed(2));
         symbol.style.setProperty("--fgeschw", (1.12 - staerke * 0.28).toFixed(2) + "s");
+        symbol.innerHTML = svgFlamme() + svgWellen();
+        symbol.classList.add("hz-st" + wellenStufe(staerke));
+      } else {
+        symbol.innerHTML = svgFlamme();
       }
-      symbol.innerHTML = "<span class='flamme-schicht'></span>" +
-        "<span class='flamme-kern'></span>";
-    } else {
-      const staerke = aktiv ? flammeStaerke(ze) : 0.78;
-      symbol.className = "sonne" + (aktiv ? " sonne-an" : " sonne-aus");
+    } else if (aktiv) {
+      /* tado-Sprache: Sonne = heizt aktiv auf. Gelb-orange ab Ziel 20,
+         gruen bei Spar-Ziel unter 19. Wellen = 1-3 nach Aufheiz-Bedarf. */
+      const staerke = flammeStaerke(ze);
+      const spar = typeof ze.soll === "number" && ze.soll < 19;
+      symbol.className = "sonne sonne-an" + (spar ? " sonne-spar" : "");
       symbol.style.setProperty("--sstaerke", staerke.toFixed(2));
-      symbol.innerHTML = "<span class='sonne-strahlen'></span>" +
-        "<span class='sonne-kern'></span>";
+      symbol.innerHTML = svgSonne(spar) + svgWellen();
+      symbol.classList.add("hz-st" + wellenStufe(staerke));
+    } else {
+      /* tado-Sprache: Soll unter Ist -> kein Heizen -> Haus statt Sonne.
+         Spar-Ziel (unter 19 Grad): der Haus-Punkt gruent (Oko-Spar-Modus),
+         sonst grau. */
+      const spar = typeof ze.soll === "number" && ze.soll < 19;
+      symbol.className = "haus" + (spar ? " haus-spar" : "");
+      symbol.innerHTML = svgHaus();
     }
     const nameEl = document.createElement("span");
     nameEl.className = "heizung-name";
@@ -2166,7 +2311,8 @@ function kachelWetter(d) {
   const kachel = $("k-wetter");
   box.innerHTML = "";
   if (!d || !d.daily || !d.daily.time || !d.daily.time.length) {
-    if (kachel) kachel.classList.remove("wetter-sturm", "wetter-schwer");
+    if (kachel) kachel.classList.remove("wetter-sturm", "wetter-schwer",
+      "wetter-sonnig");
     const leer = document.createElement("div");
     leer.className = "kachel-zusatz";
     leer.textContent = "Wetter gerade nicht erreichbar";
@@ -2191,12 +2337,17 @@ function kachelWetter(d) {
       windZeile(tage, i);
     box.append(zelle);
   }
-  /* Sturm heute: sofort an der Kachel sichtbar (Warnglow am Rahmen) */
+  /* Sturm heute: sofort an der Kachel sichtbar (Warnglow am Rahmen).
+     Klarer Himmel (Code 0/1) toent die Kachel warm (Wetter-App-Logik:
+     die Kachel-Atmosphaere folgt der Wetterlage). */
   if (kachel) {
     const heuteStufe = windStufe(tage.wind_gusts_10m_max
       ? tage.wind_gusts_10m_max[0] : null);
+    const codeHeute = Number(tage.weather_code && tage.weather_code[0]);
     kachel.classList.toggle("wetter-sturm", heuteStufe === 1);
     kachel.classList.toggle("wetter-schwer", heuteStufe === 2);
+    kachel.classList.toggle("wetter-sonnig",
+      heuteStufe === 0 && (codeHeute === 0 || codeHeute === 1));
   }
   state.kachelDaten["k-wetter"] = d;
 }
