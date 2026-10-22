@@ -1733,24 +1733,28 @@ function kachelHeizung(zonen) {
       ? (ze.modus === "zeitplan" ? "Zeitplan"
          : (ze.power === "OFF" ? "aus" : "an"))
       : "";
-    /* Beim Stepper steht das Soll gross daneben -> Textzeile bleibt beim Ist. */
-    wert.textContent = heizungStepperMoeglich(ze)
-      ? `ist ${ist}`
-      : (wasserStatus || (sollTxt ? `${ist} · soll ${sollTxt}` : ist));
+    /* Kay: "da muss ist und soll stehen" - jede Raum-Zone zeigt beide
+       Werte in ihrer Fakten-Zeile, auch wenn der Stepper das Soll gross
+       daneben hat. Warmwasser bleibt wie es ist (Status-Text "Zeitplan"/
+       "aus" statt Soll, solange kein sinnvolles Soll gemeldet wird). */
+    wert.textContent = heizungIstWasser(z)
+      ? (wasserStatus || (sollTxt ? `${ist} · soll ${sollTxt}` : ist))
+      : (sollTxt ? `ist ${ist} · soll ${sollTxt}` : `ist ${ist}`);
     if (heizungStepperMoeglich(ze) && zonen.length <= 2) {
-      /* Viel Platz (1-2 Zonen): Name oben in voller Breite, darunter Ist
-         links und Stepper rechts - kein Umbuch, kein Abschneiden. */
+      /* Viel Platz (1-2 Zonen): Name-Zeile ohne angehaengtes Ist, DARUNTER
+         die kompakte Fakten-Zeile "ist X · soll Y" (umbrechbar, nie
+         abgeschnitten), Stepper-Zeile darunter wie bisher. */
       zeile.classList.add("heizung-breit");
       const kopf = document.createElement("span");
       kopf.className = "heizung-kopf";
-      kopf.append(symbol, nameEl, wert);   /* Ist rechts neben den Namen */
+      kopf.append(symbol, nameEl);
       const fuss = document.createElement("span");
       fuss.className = "heizung-fuss";
       if (state.heizungLaeuft[name]) zeile.classList.add("hz-laeuft");
       if ((state.heizungFlash[name] || 0) > Date.now()) zeile.classList.add("hz-fehler");
       else if (state.heizungFlash[name]) delete state.heizungFlash[name];
       fuss.append(heizungStepper(z, ze, zeile));
-      zeile.append(kopf, fuss);
+      zeile.append(kopf, wert, fuss);
     } else {
       const texte = document.createElement("span");
       texte.className = "heizung-texte";

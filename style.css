@@ -734,12 +734,12 @@ body.tab-weg .musik-eq span { animation-play-state: paused; }
 .heizung-wert {
   color: var(--text-dunkel);
   font-variant-numeric: tabular-nums;
-  /* schrumpfbar + ellipsis: der Wert darf nie in die Touch-Buttons laufen */
+  /* Kay: Werte NIEMALS abschneiden - die Fakten-Zeile "ist x · soll y"
+     darf auf 2 Zeilen umbrechen (overflow-wrap), im Spalten-Layout
+     laeuft sie so nie in die Touch-Buttons. Kein ellipsis mehr. */
   flex: 0 1 auto;
   min-width: 0;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  overflow-wrap: break-word;
 }
 
 /* ---------- Termine: Mini-Hero + kompakte Zeilen ----------
@@ -2269,9 +2269,11 @@ body.tab-weg::before, body.tab-weg::after {
   font-size: 1.2rem;
   flex: 0 1 auto;
 }
-.heizung-breit .heizung-kopf .heizung-wert {
+/* Fakten-Zeile als eigene Zeile unter dem Kopf (Kay: "da muss ist und
+   soll stehen"): kompakt wie der Warmwasser-Status, umbrechbar, nie
+   abgeschnitten. */
+.heizung-breit > .heizung-wert {
   font-size: 0.98rem;
-  margin-left: auto;
 }
 .heizung-breit .heizung-fuss {
   display: flex;
