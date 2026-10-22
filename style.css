@@ -1471,6 +1471,19 @@ main:not(.ohne-fotos) .gespraech-kachel .kachel-label { letter-spacing: 0.14em; 
 .markt-leichter_wind .markt-wort { color: #ffe08a; text-shadow: 0 0 1.6rem rgba(255,224,138,0.28); }
 .markt-unruhig .markt-wort { color: var(--gelb); text-shadow: 0 0 1.6rem rgba(255,209,102,0.32); }
 .markt-stuermisch .markt-wort { color: var(--rot); text-shadow: 0 0 1.6rem rgba(255,92,116,0.38); }
+/* Runde 6, Stockbot-Regime: RUECKENWIND gruen-cyan und leicht nach oben
+   geneigt, GEGENWIND orange und leicht nach unten. STURM erbt die ganze
+   markt-stuermisch-Darstellung (rot, Glow-Rand, Animation), LEICHTER WIND
+   erbt markt-leichter_wind. */
+.markt-rueckenwind .markt-wind { color: var(--cyan); transform: rotate(-8deg); }
+.markt-rueckenwind .markt-wort { color: var(--cyan); text-shadow: 0 0 1.6rem rgba(79,209,197,0.32); }
+.markt-kachel.markt-gegenwind {
+  border-color: rgba(255, 164, 94, 0.38);
+  box-shadow: 0 0 1.4rem rgba(255, 164, 94, 0.14),
+              inset 0 0 2rem rgba(255, 164, 94, 0.04);
+}
+.markt-gegenwind .markt-wind { color: #ffa45e; transform: rotate(8deg); }
+.markt-gegenwind .markt-wort { color: #ffa45e; text-shadow: 0 0 1.6rem rgba(255,164,94,0.30); }
 .markt-fakten {
   font-size: 1.3rem;
   color: #c3cfe2;

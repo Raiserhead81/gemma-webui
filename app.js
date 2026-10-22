@@ -2543,12 +2543,15 @@ function kachelWelt(d) {
 
 /* ---------------- Markt-Ampel: wie ist der Markt? ----------------
    Kay will sehen, WIE der Markt drauf ist, nicht eine Zahlenwüste:
-   groß das Stimmungswort als Wind-Metapher (RUHIG / LEICHTER WIND /
-   UNRUHIG / STÜRMISCH - VIX-Schwellen 13/20/30, serverseitig in
-   bruecke.markt_stufe berechnet), darunter die Fakten VIX + DAX-
-   Veränderung heute. Quelle: /status -> markt (Yahoo-Finance, 10-Min-
-   Cache). Quelle weg -> letzter Stand mit "Stand: vor X Min"; nie
-   Daten -> ein ruhiger Satz. */
+   groß das Urteil als Wind-Metapher. Runde 6: das Urteil fällt das
+   echte Stockbot-Regime (SPY/QQQ/XLK/SMH gegen SMA20, serverseitig in
+   bruecke.markt_regime nach backtest_fund_short.py gebaut): RÜCKENWIND /
+   LEICHTER WIND / GEGENWIND / STURM. Die alten VIX-Stufen (Schwellen
+   13/20/30, bruecke.markt_stufe) bleiben als Rückfallebene, wenn das
+   Regime fehlt (regime null, z.B. Datenlücke). Fakten darunter: VIX +
+   DAX-Veränderung heute. Quelle: /status -> markt (Yahoo-Finance,
+   10-Min-Cache). Quelle weg -> letzter Stand mit "Stand: vor X Min";
+   nie Daten -> ein ruhiger Satz. */
 
 const MARKT_WORTE = {
   ruhig: "RUHIG",
@@ -2556,6 +2559,36 @@ const MARKT_WORTE = {
   unruhig: "UNRUHIG",
   stuermisch: "STÜRMISCH"
 };
+
+/* Stockbot-Regime zuerst, VIX nur Rückfallebene. Erklärung je Regime
+   fürs Overlay (je 1 Zeile, deutsch). STURM erbt markt-stuermisch,
+   LEICHTER WIND erbt markt-leichter_wind. */
+const MARKT_REGIME = {
+  risk_on: {
+    wort: "RÜCKENWIND",
+    klasse: "markt-rueckenwind",
+    bedeutet: "SPY und QQQ laufen über ihrem 20-Tage-Schnitt: Risk-on."
+  },
+  mixed: {
+    wort: "LEICHTER WIND",
+    klasse: "markt-leichter_wind",
+    bedeutet: "Kurslage gemischt: SPY und QQQ liegen um ihrem 20-Tage-Schnitt."
+  },
+  risk_off: {
+    wort: "GEGENWIND",
+    klasse: "markt-gegenwind",
+    bedeutet: "SPY und QQQ liegen unter ihrem 20-Tage-Schnitt: Risk-off."
+  },
+  deep_risk_off: {
+    wort: "STURM",
+    klasse: "markt-stuermisch",
+    bedeutet: "Alle Leitindizes unter ihrem 20-Tage-Schnitt: tiefes Risk-off."
+  }
+};
+const MARKT_KLASSEN = [
+  ...Object.keys(MARKT_WORTE).map((s) => "markt-" + s),
+  ...Object.values(MARKT_REGIME).map((r) => r.klasse)
+];
 
 function kachelMarkt(m) {
   state.kachelDaten["k-markt"] = m || null;
@@ -2565,11 +2598,12 @@ function kachelMarkt(m) {
   const skala = $("markt-skala");
   const marker = $("markt-marker");
   if (!kachel || !wort || !fakten) return;
-  for (const stufe of Object.keys(MARKT_WORTE)) {
-    kachel.classList.remove("markt-" + stufe);
+  for (const klasse of MARKT_KLASSEN) {
+    kachel.classList.remove(klasse);
   }
   kachel.classList.remove("markt-laeuft");
-  const da = m && MARKT_WORTE[m.stufe] && typeof m.vix === "number";
+  const rg = m && typeof m.regime === "string" ? MARKT_REGIME[m.regime] : null;
+  const da = m && (rg || (MARKT_WORTE[m.stufe] && typeof m.vix === "number"));
   if (!da) {
     wort.textContent = "—";
     wort.classList.remove("wort-lang");
@@ -2577,9 +2611,17 @@ function kachelMarkt(m) {
     if (skala) skala.classList.add("weg");
     return;
   }
-  kachel.classList.add("markt-" + m.stufe, "markt-laeuft");
-  wort.textContent = MARKT_WORTE[m.stufe];
-  wort.classList.toggle("wort-lang", MARKT_WORTE[m.stufe].length > 7);
+  const titel = rg ? rg.wort : MARKT_WORTE[m.stufe];
+  kachel.classList.add(rg ? rg.klasse : "markt-" + m.stufe, "markt-laeuft");
+  wort.textContent = titel;
+  wort.classList.toggle("wort-lang", titel.length > 7);
+  /* LANGE Worte (RUeckENWIND, GEGENWIND) laufen sonst in den Kachelrand:
+     Schrift in Stufen verkleinern, bis das Wort in die Zeile passt. */
+  wort.style.fontSize = "";
+  for (let stufe = 0; stufe < 3 && wort.scrollWidth > wort.clientWidth;
+       stufe++) {
+    wort.style.fontSize = (1.9 - (stufe + 1) * 0.28).toFixed(2) + "rem";
+  }
   if (skala && marker && typeof m.vix === "number") {
     /* Skala zeigt 0-40, Zonengrenzen wie die Schwellen (13/20/30) */
     const anteil = Math.max(0, Math.min(1, m.vix / 40));
@@ -2595,6 +2637,9 @@ function kachelMarkt(m) {
   } else if (typeof m.dax === "number") {
     teile.push("DAX " + zahlDe(m.dax, 0));
   }
+  /* Regime-Abstände (SPY/QQQ/XLK/SMH vs SMA20) bewusst NICHT auf der
+     Kachel: mit VIX + DAX läuft die schmale Zeile in die Ellipsis (per
+     Playwright gemessen). Die 4 Abstände stehen im Overlay. */
   if (typeof m.alter === "number" && m.alter > 1200) {
     teile.push("Stand: vor " + Math.round(m.alter / 60) + " Min");
   }
@@ -3178,9 +3223,27 @@ function overlayOeffnen(id) {
       zeileInOverlay(inhalt, "Hinweis", "Noch keine Werte von der Uhr.");
     }
   } else if (id === "k-markt" && daten) {
+    /* Runde 6: Stockbot-Regime zuerst (Urteil + 1 Erklärzeile je Regime +
+       die 4 SMA20-Abstände), VIX-Stufe als Rückfallebene darunter. */
+    const rg = typeof daten.regime === "string" ? MARKT_REGIME[daten.regime] : null;
+    if (rg) {
+      zeileInOverlay(inhalt, "Regime", rg.wort);
+      zeileInOverlay(inhalt, "Bedeutung", rg.bedeutet);
+      const ab = daten.regime_abstaende;
+      if (ab) {
+        for (const [schluessel, name] of [["spy", "SPY"], ["qqq", "QQQ"],
+                                          ["xlk", "XLK"], ["smh", "SMH"]]) {
+          if (typeof ab[schluessel] === "number") {
+            zeileInOverlay(inhalt, name + " vs SMA20",
+              (ab[schluessel] >= 0 ? "+" : "") +
+              zahlDe(ab[schluessel], 1) + " %");
+          }
+        }
+      }
+    }
     if (typeof daten.vix === "number") {
       zeileInOverlay(inhalt, "VIX", zahlDe(daten.vix, 1));
-      zeileInOverlay(inhalt, "Stimmung", MARKT_WORTE[daten.stufe] || "—");
+      zeileInOverlay(inhalt, "Stimmung (VIX)", MARKT_WORTE[daten.stufe] || "—");
       if (typeof daten.dax === "number") {
         zeileInOverlay(inhalt, "DAX", zahlDe(daten.dax, 0) + " Punkte");
       }
@@ -3189,7 +3252,7 @@ function overlayOeffnen(id) {
           (daten.dax_veraenderung >= 0 ? "+" : "") +
           zahlDe(daten.dax_veraenderung, 1) + " %");
       }
-    } else {
+    } else if (!rg) {
       const leer = document.createElement("div");
       leer.className = "ov-leer";
       leer.textContent = "Marktdaten gerade nicht erreichbar.";
