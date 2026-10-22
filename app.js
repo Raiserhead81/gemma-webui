@@ -73,6 +73,17 @@ const state = {
   lockSentinel: null,
   video: null,
   kachelDaten: {},
+  /* Heizung: Touch-Soll an der Kachel. wunsch[zone] = {soll, bis} ist der
+     optimistisch gesetzte Wert, bis der naechste Poll ihn bestaetigt.
+     laeuft[zone] = Anfrage in Flug. Geste = Anzahl aktiver +/- Gesten
+     (Poll rendert nicht dazwischen, sonst stirbt die Geste). */
+  heizungWunsch: {},
+  heizungLaeuft: {},
+  heizungTimer: {},
+  heizungGeste: 0,
+  heizungFehler: "",
+  heizungFehlerBis: 0,
+  heizungFlash: {},   /* zone -> bis roter Blitz (re-render-sicher) */
   /* Musik: letzter Stand + Zeitpunkt, damit der Fortschritt zwischen
      den Polls selbst weiterlaeuft und beim Poll wieder angesynced wird */
   musik: null,
@@ -1039,11 +1050,15 @@ function textSenden(text) {
 
 /* ---------------- Kacheln: Status holen ---------------- */
 
-async function statusHolen() {
+async function statusHolen(frisch) {
   if (!CFG.token) return;
   const p = new URLSearchParams();
   p.set("token", CFG.token);
   p.set("t", Date.now());
+  /* Nach einem gesetzten Heizungs-Soll: tado braucht Sekunden fuer das
+     Overlay, der 120-s-Kachel-Cache wuerde sonst alt bleiben. Ein Poll
+     mit frisch=heizung leert den Cache serverseitig (bruecke). */
+  if (frisch) p.set("frisch", "heizung");
   let d;
   try {
     const r = await fetch(location.origin + "/gemma-live/status?" + p.toString(),
@@ -1451,9 +1466,44 @@ function heiztAktiv(z) {
   return z.power === "ON";
 }
 
+/* ---------------- Heizung: Touch-Soll (Wanddisplay) ----------------
+   An der Echo Show 15 haengt die Kachel an der Wand: grosse +/- Buttons
+   neben jeder Zone aendern das tado-Soll direkt (Schritt 0,5 °C, 5 bis
+   25 °C). Geschaltet wird gegen die BESTEHENDE Uhr-API (watch_api cmd,
+   "aktion":"set"), die nginx unter /gemma-live/heizung mit Token-Gate
+   hinter dem vhost-Basic-Auth anbindet. Optimistisch: Zahl aendert sich
+   sofort, pult beim Laufen, Rollback + roter Flash bei Fehler.
+   Zonen ohne sinnvolles Soll bekommen keinen Stepper: Warmwasser (soll
+   ueber 25) und ausgeschaltete Zonen (soll fehlt) bleiben reine Anzeige,
+   damit ein Fehltap nicht das Warmwasser verstellt. */
+
+const HEIZUNG_MIN = 5;
+const HEIZUNG_MAX = 25;
+const HEIZUNG_SCHRITT = 0.5;
+
+function heizungGradText(g) {
+  return g.toFixed(1).replace(".", ",") + "°";
+}
+
+/* Stepper nur fuer Heizkoerper-Zonen: sinnvoller Soll zwischen 5 und 25. */
+function heizungStepperMoeglich(z) {
+  return typeof z.soll === "number" && z.soll >= HEIZUNG_MIN && z.soll <= HEIZUNG_MAX;
+}
+
+/* Optimistischer Wunsch, wenn frisch (sonst undefined) */
+function heizungWunschVon(name) {
+  const w = state.heizungWunsch[name];
+  if (w && Date.now() < w.bis) return w.soll;
+  if (w) delete state.heizungWunsch[name];
+  return undefined;
+}
+
 function kachelHeizung(zonen) {
   const box = $("heizung-liste");
   const kachel = $("k-heizung");
+  /* Aktive Touch-Geste: NICHT neu rendern, sonst stirbt die Geste
+     (Buttons werden neu gebaut, pointerup geht verloren). */
+  if (state.heizungGeste > 0) return;
   box.innerHTML = "";
   state.kachelDaten["k-heizung"] = zonen || null;
   if (!zonen || !zonen.length) {
@@ -1464,40 +1514,301 @@ function kachelHeizung(zonen) {
     box.append(leer);
     return;
   }
+  const dicht = zonen.length >= 4;
+  const micro = zonen.length >= 5;
+  box.classList.toggle("heizung-dicht", dicht);
+  box.classList.toggle("heizung-micro", micro);
+  if (kachel) {
+    kachel.classList.toggle("heizung-dicht", dicht);
+    kachel.classList.toggle("heizung-micro", micro);
+  }
   let heiztAlle = true;
   for (const z of zonen) {
+    const name = z.name || "—";
+    /* Bestaetigter Poll loest den Wunsch auf; bis dahin zeigt die Zeile
+       den Wunsch (der Poll kennt das Overlay oft noch nicht). */
+    let wunsch = heizungWunschVon(name);
+    if (wunsch !== undefined && typeof z.soll === "number" &&
+        Math.abs(z.soll - wunsch) < 0.01) {
+      delete state.heizungWunsch[name];   /* Server hat uebernommen */
+      wunsch = undefined;
+    }
+    const ze = (wunsch !== undefined && typeof z.soll === "number")
+      ? Object.assign({}, z, { soll: wunsch }) : z;
     const zeile = document.createElement("div");
-    const aktiv = heiztAktiv(z);
+    const aktiv = heiztAktiv(ze);
     if (!aktiv) heiztAlle = false;
     zeile.className = "heizung-zeile" + (aktiv ? " heizt" : " heizt-aus");
+    zeile.dataset.zone = name;
     /* Gasflamme: animiert, wenn geheizt wird (flamme-an), sonst grau aus.
        --fstaerke = Hoehe/Breite nach Aufheiz-Bedarf, --fgeschw = Flacker-
-       tempo (staerkere Flamme flackert etwas schneller). */
+       tempo (staerkere Flamme flackert etwas schneller). Reagiert auf den
+       optimistischen Soll mit. */
     const flamme = document.createElement("span");
     flamme.className = "flamme" + (aktiv ? " flamme-an" : " flamme-aus");
     if (aktiv) {
-      const staerke = flammeStaerke(z);
+      const staerke = flammeStaerke(ze);
       flamme.style.setProperty("--fstaerke", staerke.toFixed(2));
       flamme.style.setProperty("--fgeschw", (1.12 - staerke * 0.28).toFixed(2) + "s");
     }
     flamme.innerHTML = "<span class='flamme-schicht'></span>" +
       "<span class='flamme-kern'></span>";
-    const name = document.createElement("span");
-    name.className = "heizung-name";
-    name.textContent = z.name || "—";
+    const nameEl = document.createElement("span");
+    nameEl.className = "heizung-name";
+    nameEl.textContent = name;
+    nameEl.title = name;   /* voller Name, auch wenn der Kompakt-Modus kuerzt */
     const wert = document.createElement("span");
     wert.className = "heizung-wert";
-    const ist = (typeof z.ist === "number") ? z.ist.toFixed(1).replace(".", ",") + "°" : "—";
-    const soll = (typeof z.soll === "number") ? z.soll.toFixed(1).replace(".", ",") + "°" : "";
-    wert.textContent = soll ? `${ist} · soll ${soll}` : ist;
-    const texte = document.createElement("span");
-    texte.className = "heizung-texte";
-    texte.append(name, wert);
-    zeile.append(flamme, texte);
+    const ist = (typeof z.ist === "number") ? heizungGradText(z.ist) : "—";
+    const sollTxt = (typeof ze.soll === "number") ? heizungGradText(ze.soll) : "";
+    /* Beim Stepper steht das Soll gross daneben -> Textzeile bleibt beim Ist. */
+    wert.textContent = heizungStepperMoeglich(ze)
+      ? `ist ${ist}` : (sollTxt ? `${ist} · soll ${sollTxt}` : ist);
+    if (heizungStepperMoeglich(ze) && zonen.length <= 2) {
+      /* Viel Platz (1-2 Zonen): Name oben in voller Breite, darunter Ist
+         links und Stepper rechts - kein Umbuch, kein Abschneiden. */
+      zeile.classList.add("heizung-breit");
+      const kopf = document.createElement("span");
+      kopf.className = "heizung-kopf";
+      kopf.append(flamme, nameEl, wert);   /* Ist rechts neben den Namen */
+      const fuss = document.createElement("span");
+      fuss.className = "heizung-fuss";
+      if (state.heizungLaeuft[name]) zeile.classList.add("hz-laeuft");
+      if ((state.heizungFlash[name] || 0) > Date.now()) zeile.classList.add("hz-fehler");
+      else if (state.heizungFlash[name]) delete state.heizungFlash[name];
+      fuss.append(heizungStepper(z, ze, zeile));
+      zeile.append(kopf, fuss);
+    } else {
+      const texte = document.createElement("span");
+      texte.className = "heizung-texte";
+      texte.append(nameEl, wert);
+      zeile.append(flamme, texte);
+      if (heizungStepperMoeglich(ze)) zeile.append(heizungStepper(z, ze, zeile));
+      if (state.heizungLaeuft[name]) zeile.classList.add("hz-laeuft");
+      if ((state.heizungFlash[name] || 0) > Date.now()) zeile.classList.add("hz-fehler");
+      else if (state.heizungFlash[name]) delete state.heizungFlash[name];
+    }
     box.append(zeile);
+  }
+  if (state.heizungFehler && Date.now() < state.heizungFehlerBis) {
+    const fehler = document.createElement("div");
+    fehler.className = "kachel-zusatz heizung-fehler-text";
+    fehler.textContent = state.heizungFehler;
+    box.append(fehler);
   }
   /* Ueberall heisst es: dezenter warmer Glow an der ganzen Kachel */
   if (kachel) kachel.classList.toggle("heizung-voll", heiztAlle && zonen.length > 0);
+}
+
+/* Ein Stepper-Paar (minus, grosse klickbare Zahl, plus) fuer eine Zone. */
+function heizungStepper(z, ze, zeile) {
+  const name = z.name || "";
+  const stepper = document.createElement("span");
+  stepper.className = "heizung-stepper";
+  const minus = document.createElement("button");
+  minus.type = "button";
+  minus.className = "hz-btn hz-minus";
+  minus.textContent = "−";
+  minus.setAttribute("aria-label", name + " kälter");
+  const sollEl = document.createElement("button");
+  sollEl.type = "button";
+  sollEl.className = "hz-soll";
+  sollEl.textContent = heizungGradText(ze.soll);
+  sollEl.setAttribute("aria-label", name + " Soll übernehmen");
+  const plus = document.createElement("button");
+  plus.type = "button";
+  plus.className = "hz-btn hz-plus";
+  plus.textContent = "+";
+  plus.setAttribute("aria-label", name + " wärmer");
+  heizungGesteBinden(minus, -1, z, sollEl, zeile, plus);
+  heizungGesteBinden(plus, 1, z, sollEl, zeile, minus);
+  minus.disabled = ze.soll <= HEIZUNG_MIN;
+  plus.disabled = ze.soll >= HEIZUNG_MAX;
+  /* Zahl antippen = aktuellen Wunsch erneut an tado schicken (idempotent,
+     hilfreich wenn eine Anfrage ins Leere lief). */
+  sollEl.addEventListener("click", () => {
+    const soll = heizungAktuellenSoll(z);
+    if (soll !== undefined) heizungSetzen(z, soll);
+  });
+  stepper.append(minus, sollEl, plus);
+  return stepper;
+}
+
+function heizungAktuellenSoll(z) {
+  const w = heizungWunschVon(z.name || "");
+  if (w !== undefined) return w;
+  return (typeof z.soll === "number") ? z.soll : undefined;
+}
+
+/* Clamp auf Heizkoerper-Bereich und auf 0,5-Schritte */
+function heizungClamp(g) {
+  const stufen = Math.round(g / HEIZUNG_SCHRITT);
+  const basis = stufen * HEIZUNG_SCHRITT;
+  return Math.min(HEIZUNG_MAX, Math.max(HEIZUNG_MIN, basis));
+}
+
+/* Geste: sofort +0,5 (optimistisch), beim Halten alle 220 ms weiter.
+   Loslassen schickt EINEN Request mit dem Endwert (kein Request-Regen,
+   max 1 Setzung je Geste). Wischen (>12 px) bricht ab. */
+function heizungGesteBinden(btn, richtung, z, sollEl, zeile, gegen) {
+  btn.addEventListener("pointerdown", (e) => {
+    if (state.heizungLaeuft[z.name]) return;   /* eine Anfrage nach der anderen */
+    e.preventDefault();
+    try { btn.setPointerCapture(e.pointerId); } catch (err) { /* egal */ }
+    const startX = e.clientX;
+    const startY = e.clientY;
+    const basis = heizungClamp(heizungAktuellenSoll(z));
+    let neu = basis;
+    let gezogen = false;
+    let halteTimer = null;
+    let wiederholung = null;
+    state.heizungGeste += 1;
+    const stoppen = (senden) => {
+      clearTimeout(halteTimer);
+      clearInterval(wiederholung);
+      btn.removeEventListener("pointermove", bewegen);
+      btn.removeEventListener("pointerup", hoch);
+      btn.removeEventListener("pointercancel", abbrechen);
+      druecken(btn, false);
+      state.heizungGeste = Math.max(0, state.heizungGeste - 1);
+      /* Buttons erst am GESTE-Ende umschalten: disabled-Buttons bekamen
+         kein pointerup mehr, die Geste wuerde haengen. */
+      heizungButtonsSetzen(zeile, gezogen ? basis : neu);
+      if (gezogen) return;                    /* Wischen: nichts aendern */
+      if (senden && neu !== basis) heizungSetzen(z, neu);
+      if (senden && neu === basis) heizungWunschLoeschen(z.name);
+      if (!senden) heizungWunschLoeschen(z.name);
+    };
+    const schritt = () => {
+      const naechster = heizungClamp(neu + richtung * HEIZUNG_SCHRITT);
+      if (naechster === neu) { stoppen(true); return; }   /* Limit erreicht */
+      neu = naechster;
+      sollEl.textContent = heizungGradText(neu);
+      state.heizungWunsch[z.name] = { soll: neu, bis: Date.now() + 45000 };
+    };
+    const bewegen = (ev) => {
+      /* 14 px Toleranz: ungenaue Finger am Wand-Display brechen nicht ab */
+      if (Math.hypot(ev.clientX - startX, ev.clientY - startY) > 14) {
+        gezogen = true;
+        sollEl.textContent = heizungGradText(basis);
+        stoppen(false);
+      }
+    };
+    const hoch = () => stoppen(true);
+    const abbrechen = () => {
+      sollEl.textContent = heizungGradText(basis);
+      stoppen(false);
+    };
+    const druecken = (el, an) => el && el.classList.toggle("hz-drueckt", an);
+    heizungButtonsSetzen(zeile, basis);
+    druecken(btn, true);
+    btn.addEventListener("pointermove", bewegen);
+    btn.addEventListener("pointerup", hoch);
+    btn.addEventListener("pointercancel", abbrechen);
+    schritt();
+    halteTimer = setTimeout(() => {
+      wiederholung = setInterval(schritt, 220);
+    }, 420);
+  });
+  /* Tastatur (Zugänglichkeit): Enter/Space = ein Schritt */
+  btn.addEventListener("keydown", (e) => {
+    if (e.key !== "Enter" && e.key !== " ") return;
+    e.preventDefault();
+    const basis = heizungClamp(heizungAktuellenSoll(z));
+    const neu = heizungClamp(basis + richtung * HEIZUNG_SCHRITT);
+    if (neu === basis) return;
+    heizungWunschSetzen(z.name, neu);
+    sollEl.textContent = heizungGradText(neu);
+    heizungSetzen(z, neu);
+  });
+}
+
+/* +/- Ausgrauen an den Limits */
+function heizungButtonsSetzen(zeile, neu) {
+  if (!zeile) return;
+  const minus = zeile.querySelector(".hz-minus");
+  const plus = zeile.querySelector(".hz-plus");
+  if (minus) minus.disabled = neu <= HEIZUNG_MIN;
+  if (plus) plus.disabled = neu >= HEIZUNG_MAX;
+}
+
+/* Zeile live suchen (Re-Render ersetzt die Elemente, Referenzen sterben) */
+function heizungZeileVon(name) {
+  try {
+    return document.querySelector("#heizung-liste [data-zone=" +
+      CSS.escape(name) + "]");
+  } catch (e) {
+    return null;
+  }
+}
+
+function heizungWunschSetzen(name, soll) {
+  state.heizungWunsch[name] = { soll, bis: Date.now() + 45000 };
+}
+
+function heizungWunschLoeschen(name) {
+  delete state.heizungWunsch[name];
+}
+
+/* Setzen: optimistisch zeigen, senden, Fehler -> Rollback + roter Flash.
+   Mehrere schnelle Gesten laufen in EINEN Request zusammen (300 ms Fenster,
+   es geht immer der zuletzt gewuenschte Wert raus) -> max ~3 Requests/s. */
+function heizungSetzen(z, soll) {
+  const name = z.name || "";
+  heizungWunschSetzen(name, soll);
+  clearTimeout(state.heizungTimer[name]);
+  state.heizungTimer[name] = setTimeout(() => heizungSenden(name), 300);
+}
+
+async function heizungSenden(name) {
+  const w = heizungWunschVon(name);
+  if (w === undefined) return;
+  const soll = w;
+  heizungWunschSetzen(name, soll);
+  if (state.heizungLaeuft[name]) {   /* laeuft schon: danach nochmal frisch */
+    clearTimeout(state.heizungTimer[name]);
+    state.heizungTimer[name] = setTimeout(() => heizungSenden(name), 600);
+    return;
+  }
+  state.heizungLaeuft[name] = true;
+  const zeile = heizungZeileVon(name);
+  if (zeile) zeile.classList.add("hz-laeuft");
+  try {
+    const r = await fetch(location.origin + "/gemma-live/heizung", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ziel: "heizung", aktion: "set", zone: name, grad: soll }),
+    });
+    const d = await r.json().catch(() => ({}));
+    if (!r.ok || !d.ok) throw new Error(d.text || "Heizung nicht erreichbar");
+    /* Bestaetigt: Wunsch halten, bis der Poll (mit frisch) den Wert zeigt */
+    heizungWunschSetzen(name, soll);
+    heizungFehlerRaeumen();
+    statusHolen(true);   /* naechster Poll holt tado frisch (Cache weg) */
+    setTimeout(() => statusHolen(true), 4000);   /* Overlay nachziehen */
+  } catch (e) {
+    heizungWunschLoeschen(name);
+    state.heizungFehler = String(e.message || e).slice(0, 120);
+    state.heizungFehlerBis = Date.now() + 6000;
+    state.heizungFlash[name] = Date.now() + 1100;
+    const zielle = heizungZeileVon(name);
+    if (zielle) {
+      zielle.classList.remove("hz-fehler");
+      void zielle.offsetWidth;   /* Flash neu starten */
+      zielle.classList.add("hz-fehler");
+    }
+    statusHolen();   /* echten Stand zurueckholen */
+  } finally {
+    delete state.heizungLaeuft[name];
+    const zielle = heizungZeileVon(name);
+    if (zielle) zielle.classList.remove("hz-laeuft");
+  }
+}
+
+function heizungFehlerRaeumen() {
+  state.heizungFehler = "";
+  state.heizungFehlerBis = 0;
+  state.heizungFlash = {};
 }
 
 const TAGE_KURZ = ["So", "Mo", "Di", "Mi", "Do", "Fr", "Sa"];

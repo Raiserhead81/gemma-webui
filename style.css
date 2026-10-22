@@ -659,11 +659,18 @@ body.tab-weg .musik-eq span { animation-play-state: paused; }
 }
 .heizung-name {
   white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .heizung-wert {
   color: var(--text-dunkel);
   font-variant-numeric: tabular-nums;
-  flex: none;
+  /* schrumpfbar + ellipsis: der Wert darf nie in die Touch-Buttons laufen */
+  flex: 0 1 auto;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 /* ---------- Termine: Mini-Hero + kompakte Zeilen ----------
@@ -1622,6 +1629,7 @@ main:not(.ohne-fotos) .gespraech-kachel .kachel-label { letter-spacing: 0.14em; 
   flex-direction: column;
   gap: 0.1rem;
   min-width: 0;
+  overflow: hidden;
 }
 .flamme {
   position: relative;
@@ -1772,4 +1780,143 @@ body.tab-weg .heizung-zeile.heizt .flamme {
   .heizung-zeile.heizt .flamme {
     animation: none !important;
   }
+}
+
+/* --- Heizung: Touch-Stepper (Soll an der Wand-Kachel aendern) ---
+   Buttons in px (nicht rem): html-Schrift ist vw-klemmend, Touch-Targets
+   muessen aber physisch 44 px bleiben (Finger am Wanddisplay). */
+.heizung-stepper {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  margin-left: auto;
+  flex: none;
+}
+.hz-btn {
+  width: 44px;
+  height: 44px;
+  min-width: 44px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 26px;
+  font-weight: 700;
+  line-height: 1;
+  color: var(--text);
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 12px;
+  cursor: pointer;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
+  -webkit-user-select: none;
+}
+.hz-btn.hz-drueckt { transform: scale(0.92); background: rgba(255, 255, 255, 0.18); }
+.hz-btn[disabled] { opacity: 0.25; pointer-events: none; }
+.hz-soll {
+  min-width: 62px;
+  height: 44px;
+  padding: 0 4px;
+  font-family: inherit;
+  font-size: 23px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  color: var(--text);
+  background: none;
+  border: none;
+  cursor: pointer;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
+  -webkit-user-select: none;
+}
+/* laufende Anfrage: Zahl pulsiert leicht */
+.heizung-zeile.hz-laeuft .hz-soll { animation: hz-puls 1.1s ease-in-out infinite; }
+@keyframes hz-puls {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.45; }
+}
+/* Fehler: roter Blitz ueber die Zeile + Klartext unten in der Kachel */
+.heizung-zeile.hz-fehler { animation: hz-fehler-flash 1s ease-out 1; border-radius: 10px; }
+@keyframes hz-fehler-flash {
+  0% { background: rgba(255, 92, 116, 0.42); }
+  100% { background: transparent; }
+}
+.heizung-fehler-text { color: var(--rot); font-size: 1rem; }
+
+/* 4+ Zonen: kompakter (Kachel clippt sonst). Buttons optisch 38 px,
+   Treffflaeche bleibt ueber ::after 44 px gross. Die Kachelklasse erlaubt
+   auch Padding + Label abzuspecken (kein :has, Silk ist alt). */
+.kachel.heizung-dicht { padding-top: 0.6rem; padding-bottom: 0.6rem; }
+.kachel.heizung-dicht > .kachel-label { margin-bottom: 0.25rem; font-size: 0.8rem; }
+.heizung-liste.heizung-dicht { gap: 1px; }
+.heizung-liste.heizung-dicht .heizung-zeile { gap: 0.5rem; }
+.heizung-liste.heizung-dicht .heizung-name { font-size: 1rem; }
+/* Kompakt: die schmale Kachel reicht nur fuer Name ODER Ist neben dem
+   Stepper - der Name gewinnt (voll als title), das Ist steht im Poll
+   und ab 3 Zonen nur noch so. Live-Fall (1-2 Zonen) zeigt beides. */
+.heizung-liste.heizung-dicht .heizung-wert { display: none; }
+.heizung-liste.heizung-dicht .hz-btn { width: 38px; height: 38px; min-width: 38px; font-size: 22px; position: relative; }
+.heizung-liste.heizung-dicht .hz-soll { height: 38px; font-size: 19px; min-width: 50px; }
+.heizung-liste.heizung-dicht .hz-btn::after {
+  content: "";
+  position: absolute;
+  inset: -3px;
+}
+
+/* 5+ Zonen (Notfall-Fallback, live nicht vorhanden): 30 px optisch,
+   44 px Treffflaeche via ::after, Label + Padding noch knapper */
+.kachel.heizung-micro { padding-top: 0.25rem; padding-bottom: 0.25rem; }
+.kachel.heizung-micro > .kachel-label { margin-bottom: 0.1rem; font-size: 0.7rem; }
+.heizung-liste.heizung-micro { gap: 1px; }
+.heizung-liste.heizung-micro .heizung-name { font-size: 1rem; }
+.heizung-liste.heizung-micro .heizung-wert { font-size: 0.88rem; }
+/* Name + Ist auf einer Zeile, sonst dominieren die Texte die Zeilenhoehe */
+.heizung-liste.heizung-micro .heizung-texte {
+  flex-direction: row;
+  align-items: baseline;
+  gap: 0.3rem;
+  white-space: nowrap;
+}
+.heizung-liste.heizung-micro .hz-btn { width: 28px; height: 28px; min-width: 28px; font-size: 17px; }
+.heizung-liste.heizung-micro .hz-soll { height: 28px; font-size: 15px; min-width: 36px; }
+.heizung-liste.heizung-micro .hz-btn::after { inset: -8px; }
+
+/* --- 1-2 Zonen (breit): Name oben in ganzer Breite, darunter Ist links
+   und Stepper rechts - nada kollidiert, Name bleibt voll lesbar --- */
+.heizung-zeile.heizung-breit {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0.15rem;
+}
+.heizung-breit .heizung-kopf {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  min-width: 0;
+}
+.heizung-breit .heizung-kopf .flamme { align-self: center; }
+.heizung-breit .heizung-kopf .heizung-name {
+  font-size: 1.2rem;
+  flex: 0 1 auto;
+}
+.heizung-breit .heizung-kopf .heizung-wert {
+  font-size: 0.98rem;
+  margin-left: auto;
+}
+.heizung-breit .heizung-fuss {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+.heizung-breit .heizung-stepper { margin-left: auto; }
+
+/* Ruhe: kein Pulsieren/Blitzen, Fehler nur statisch lesbar */
+body.tab-weg .heizung-zeile.hz-laeuft .hz-soll { animation-play-state: paused !important; }
+@media (prefers-reduced-motion: reduce) {
+  .heizung-zeile.hz-laeuft .hz-soll { animation: none !important; opacity: 0.7; }
+  .heizung-zeile.hz-fehler { animation: none !important; background: rgba(255, 92, 116, 0.22); }
+  .hz-btn { transition: none; }
 }
