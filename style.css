@@ -1347,10 +1347,15 @@ main:not(.ohne-fotos) .gespraech-kachel .kachel-label { letter-spacing: 0.14em; 
 .server-wert.server-gelb { background-image: linear-gradient(180deg, #fff3d6, var(--gelb)); }
 .server-wert.server-rot { background-image: linear-gradient(180deg, #ffdde3, var(--rot)); }
 .dienst-down.rot { color: var(--rot); font-weight: 700; }
-/* Mini-Icons neben den Zahlen: duenne Line-SVGs, deko, Zahl bleibt Hero.
-   Sitzt INLINE in einer Zeile (server-oben), damit nichts umbricht. */
+/* Mini-Icons UEBER den Zahlen gestapelt (Icon, Zahl, Label): die Spalte
+   ist nur ~122 px breit, nebeneinander lief die Zahl ins Icon des
+   Nachbarwerts (Playwright: -11.7 px Schnitt). Gestapelt liegt jedes
+   Element in der Zahlbreite, nichts schneidet sich. */
 .server-zahl { display: flex; flex-direction: column; align-items: center; min-width: 0; }
-.server-oben { display: inline-flex; align-items: center; gap: 0.28rem; white-space: nowrap; }
+.server-oben {
+  display: inline-flex; flex-direction: column; align-items: center;
+  gap: 0.1rem; white-space: nowrap;
+}
 .server-icon {
   width: 1.15rem; height: 1.15rem; flex: none; overflow: visible;
   color: var(--text-dunkel);
