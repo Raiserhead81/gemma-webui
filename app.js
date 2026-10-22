@@ -1812,7 +1812,7 @@ function windZeile(tage, i) {
   const wst = windStufe(boeen);
   const wort = wst === 2 ? "Schwerer Sturm" : (wst === 1 ? "Sturm" : "Böen");
   return '<div class="wtag-wind' + (wst ? " wtag-wind-alarm" : "") + '">' +
-    windIcon(wst) + "<b>" + boeen + " km/h</b>" +
+    '<span class="wtag-wind-oben">' + windIcon(wst) + "<b>" + boeen + " km/h</b></span>" +
     '<span class="wtag-wind-label">' + wort + "</span></div>";
 }
 

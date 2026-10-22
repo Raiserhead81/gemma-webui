@@ -1493,13 +1493,20 @@ main:not(.ohne-fotos) .gespraech-kachel .kachel-label { letter-spacing: 0.14em; 
 /* --- Wind in der Wetter-Kachel: kleines Icon + Boeen pro Tag --- */
 .wtag-wind {
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 0.35rem;
+  gap: 0.1rem;
   font-size: 1.05rem;
   color: var(--text-dunkel);
   font-variant-numeric: tabular-nums;
   line-height: 1.2;
+}
+.wtag-wind-oben {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  white-space: nowrap;
 }
 .wtag-wind b { font-weight: 700; }
 .wtag-wind-label { font-size: 0.92rem; opacity: 0.85; }
