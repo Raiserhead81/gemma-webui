@@ -1370,6 +1370,17 @@ main:not(.ohne-fotos) .gespraech-kachel .kachel-label { letter-spacing: 0.14em; 
 .server-icon-wrap.server-rot .si-led { animation: si-blink 0.7s linear infinite; }
 @keyframes si-atmen { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
 @keyframes si-blink { 0%, 49% { opacity: 1; } 50%, 100% { opacity: 0.12; } }
+/* Rack-Icon am Server-Kachelkopf: dezent (Label-Groesse/Farbe), Stufe
+   gelb/rot faerbt + atmet/pulsiert ueber die Wrap-Klassen oben, die
+   tab-weg-/reduced-motion-Regeln greifen dadurch automatisch. Die
+   Spalte ist sehr schmal (122 px Label): "gemivo" nur an dieser Kachel
+   eine Stufe kleiner + Abstand kompakt, sonst kuerzt das ellipsis es
+   an (Playwright-Messung, vorher 9 px Luft, mit Icon 9 px drueber). */
+#server-label-stufe { vertical-align: -0.14em; }
+#server-label-stufe .server-icon {
+  width: 1em; height: 1em; color: inherit;
+}
+#k-welt .kachel-label-zusatz { font-size: 0.85em; margin-left: 0.5rem; }
 /* Zeile 2: Uhren-/Thermo-Mini-Icons dezent, Warn-Icon rot + pulsierend.
    Icon haengt am Stueck (inline-flex), der Text darf innerhalb des
    Stuecks umbrechen (schmale Spalte, Baseline-Verhalten). */

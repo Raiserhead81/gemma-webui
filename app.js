@@ -2428,9 +2428,21 @@ function serverIconSvg(art) {
          'M17.5 9h2.7M17.5 12h2.7M17.5 15h2.7"/></g>',
     ram: '<path d="M2.8 8.6h18.4v5.6h-2.6l-1.4 2.2H6.8l-1.4-2.2H2.8z"/>' +
          '<path d="M7.4 10.8v1.6M10.7 10.8v1.6M14 10.8v1.6M17.3 10.8v1.6"/>',
-    disk: '<rect x="2.8" y="6.8" width="18.4" height="10.4" rx="2.2"/>' +
-          '<circle cx="9.2" cy="12" r="2.7"/><path d="M14.6 9.9h3.4"/>' +
-          '<circle class="si-led" cx="18" cy="14.1" r="1"/>',
+    /* Disk = klassische Festplatte: Kreis-Teller + Spindel-Nabe, der
+       Lese-Kopf haengt am Arm oben rechts (mit klarem Spalt zum Teller,
+       damit es nicht wie ein Durchgestrichen liest), LED am Arm-Pivot. */
+    disk: '<circle cx="10.6" cy="13.4" r="7.8"/>' +
+          '<circle cx="10.6" cy="13.4" r="1.3"/>' +
+          '<path d="M21.3 2.7 17.7 5"/>' +
+          '<circle class="si-led" cx="21.3" cy="2.7" r="1"/>',
+    /* Server-Rack: 2 Stapel-Einheiten mit Slot-Strich + LED je Einheit
+       (bewusst 2 statt 3: bleibt aus 3 m noch eindeutig lesbar). */
+    server: '<rect x="3" y="4.3" width="18" height="6.2" rx="1.5"/>' +
+            '<path d="M6.4 7.4h4.2"/>' +
+            '<circle class="si-led" cx="17.4" cy="7.4" r="0.9"/>' +
+            '<rect x="3" y="13.5" width="18" height="6.2" rx="1.5"/>' +
+            '<path d="M6.4 16.6h4.2"/>' +
+            '<circle class="si-led" cx="17.4" cy="16.6" r="0.9"/>',
     uhr: '<circle cx="12" cy="12.6" r="8.2"/><path d="M12 7.8v4.8l3.1 1.9"/>',
     thermo: '<path d="M12 3.6a2.3 2.3 0 0 1 2.3 2.3v7.2a4.3 4.3 0 1 1-4.6 0V5.9' +
             'A2.3 2.3 0 0 1 12 3.6z"/><path d="M12 9.4v5.8"/>',
@@ -2474,10 +2486,13 @@ function kachelWelt(d) {
   const werte = [["CPU", v.cpu_prozent, "cpu"], ["RAM", v.ram_prozent, "ram"],
                  ["Disk", v.disk_prozent, "disk"]];
   let gezeigt = 0;
+  let schlimmste = 0; /* 0 gruen still, 1 gelb atmen, 2 rot puls */
   for (const [name, wert, iconArt] of werte) {
     if (typeof wert !== "number") continue;
     gezeigt += 1;
     const stufe = serverStufe(wert);
+    schlimmste = Math.max(schlimmste,
+      stufe === "server-rot" ? 2 : stufe === "server-gelb" ? 1 : 0);
     const zelle = document.createElement("div");
     zelle.className = "server-zahl";
     const oben = document.createElement("span");
@@ -2493,6 +2508,15 @@ function kachelWelt(d) {
     oben.append(icon, zahl);
     zelle.append(oben, label);
     box.append(zelle);
+  }
+  /* Rack-Icon am Kachelkopf (vor dem Label "gemivo"): dezent in der
+     Label-Farbe, faerbt/atmet/pulsiert aber mit der schlimmsten
+     Zellen-Stufe ueber die ueblichen server-icon-wrap-Klassen. */
+  const labelIcon = $("server-label-stufe");
+  if (labelIcon) {
+    labelIcon.className = "server-icon-wrap" + (schlimmste
+      ? " " + ["server-gruen", "server-gelb", "server-rot"][schlimmste] : "");
+    labelIcon.innerHTML = serverIconSvg("server");
   }
   if (!gezeigt) {
     const leer = document.createElement("div");

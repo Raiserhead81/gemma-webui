@@ -143,7 +143,10 @@
     </div>
 
     <div class="kachel" id="k-welt">
-      <div class="kachel-label">Server <span class="kachel-label-zusatz">gemivo</span></div>
+      <!-- Rack-Icon leert (JS fuellt es in kachelWelt); bewusst NACH dem
+           Text "Server", das Overlay liest label.firstChild.textContent.
+           Kein Leerzeichen vorm Zusatz: der schmalen Spalte zuliebe. -->
+      <div class="kachel-label">Server <span class="server-icon-wrap" id="server-label-stufe" aria-hidden="true"></span><span class="kachel-label-zusatz">gemivo</span></div>
       <div id="server-zahlen" class="server-zahlen"><div class="kachel-zusatz">—</div></div>
       <div id="welt-zeile2" class="kachel-zusatz">—</div>
       <div id="welt-alter" class="kachel-zusatz"></div>
