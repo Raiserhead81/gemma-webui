@@ -1726,9 +1726,17 @@ function kachelHeizung(zonen) {
     wert.className = "heizung-wert";
     const ist = (typeof z.ist === "number") ? heizungGradText(z.ist) : "—";
     const sollTxt = (typeof ze.soll === "number") ? heizungGradText(ze.soll) : "";
+    /* Warmwasser ohne sinnvolles Soll (soll null, z.B. im Zeitplan): Zeile
+       bleibt IMMER sichtbar und zeigt ihren Status als Text statt der
+       Soll-Angabe ("Zeitplan"/"aus"), sonst wirkt sie wie verschwunden. */
+    const wasserStatus = (heizungIstWasser(z) && typeof ze.soll !== "number")
+      ? (ze.modus === "zeitplan" ? "Zeitplan"
+         : (ze.power === "OFF" ? "aus" : "an"))
+      : "";
     /* Beim Stepper steht das Soll gross daneben -> Textzeile bleibt beim Ist. */
     wert.textContent = heizungStepperMoeglich(ze)
-      ? `ist ${ist}` : (sollTxt ? `${ist} · soll ${sollTxt}` : ist);
+      ? `ist ${ist}`
+      : (wasserStatus || (sollTxt ? `${ist} · soll ${sollTxt}` : ist));
     if (heizungStepperMoeglich(ze) && zonen.length <= 2) {
       /* Viel Platz (1-2 Zonen): Name oben in voller Breite, darunter Ist
          links und Stepper rechts - kein Umbuch, kein Abschneiden. */
@@ -1925,6 +1933,40 @@ function heizungSetzen(z, soll) {
   state.heizungTimer[name] = setTimeout(() => heizungSenden(name), 300);
 }
 
+/* Ein POST mit Timeout (30 s): wirft bei Fehlschlag {retrybar, text}.
+   retrybar = Netz-Wackler / Timeout / 5xx / kaputte (HTML-)Antwort;
+   4xx (Auth o.ae.) und echte tado-Absagen (d.ok false) werden NICHT
+   wiederholt. Der Fehltext zeigt den echten Text aus der Antwort, bei
+   HTTP-Fehlern zusaetzlich den Status-Code. */
+async function heizungPost(name, soll) {
+  let r;
+  try {
+    /* Token MUSS mit: die nginx-Location /gemma-live/heizung verlangt
+       $arg_token (wie /status auch) - ohne Token kommt 403 und Kay sieht
+       "Heizung nicht erreichbar", obwohl der Server intakt ist. */
+    const url = location.origin + "/gemma-live/heizung" +
+      (CFG.token ? "?token=" + encodeURIComponent(CFG.token) : "");
+    r = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ziel: "heizung", aktion: "set", zone: name, grad: soll }),
+      signal: (typeof AbortSignal !== "undefined" && AbortSignal.timeout)
+        ? AbortSignal.timeout(30000) : undefined,
+    });
+  } catch (e) {
+    throw { retrybar: true,
+            text: (e && e.name === "TimeoutError")
+              ? "Heizung antwortet nicht" : "Heizung gestört" };
+  }
+  const d = await r.json().catch(() => null);
+  const grund = (d && d.text) ? String(d.text)
+    : (r.ok ? "Heizung gestört" : "Heizung gestört (" + r.status + ")");
+  if (r.status >= 500) throw { retrybar: true, text: grund };
+  if (!r.ok) throw { retrybar: false, text: grund };
+  if (!d) throw { retrybar: true, text: "Heizung gestört" };
+  if (!d.ok) throw { retrybar: false, text: d.text || "Heizung gestört" };
+}
+
 async function heizungSenden(name) {
   const w = heizungWunschVon(name);
   if (w === undefined) return;
@@ -1939,13 +1981,19 @@ async function heizungSenden(name) {
   const zeile = heizungZeileVon(name);
   if (zeile) zeile.classList.add("hz-laeuft");
   try {
-    const r = await fetch(location.origin + "/gemma-live/heizung", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ ziel: "heizung", aktion: "set", zone: name, grad: soll }),
-    });
-    const d = await r.json().catch(() => ({}));
-    if (!r.ok || !d.ok) throw new Error(d.text || "Heizung nicht erreichbar");
+    try {
+      await heizungPost(name, soll);
+    } catch (erst) {
+      /* Ein Retry bei Netz-/5xx-/Kaputt-Antworten: tado-Cloud und
+         watch_api haken gelegentlich fuer Sekunden ("Heizung nicht
+         erreichbar" am Echo, serverseitig war alles ok) - der zweite
+         Versuch rettet das Touch-Gefuehl. Erst NACH dem zweiten
+         Fehlversuch kommt der Rollback. */
+      if (!erst || !erst.retrybar) throw erst;
+      await new Promise((ok) => setTimeout(ok, 2000));
+      if (heizungWunschVon(name) !== soll) return;   /* neuere Geste uebernimmt */
+      await heizungPost(name, soll);
+    }
     /* Bestaetigt: Wunsch halten, bis der Poll (mit frisch) den Wert zeigt */
     heizungWunschSetzen(name, soll);
     heizungFehlerRaeumen();
@@ -1953,7 +2001,7 @@ async function heizungSenden(name) {
     setTimeout(() => statusHolen(true), 4000);   /* Overlay nachziehen */
   } catch (e) {
     heizungWunschLoeschen(name);
-    state.heizungFehler = String(e.message || e).slice(0, 120);
+    state.heizungFehler = String((e && e.text) || (e && e.message) || e).slice(0, 120);
     state.heizungFehlerBis = Date.now() + 6000;
     state.heizungFlash[name] = Date.now() + 1100;
     const zielle = heizungZeileVon(name);

@@ -19,6 +19,7 @@ let zonenMock = [
 let statusAntworten = [];
 let heizungVerhalten = "ok";   /* ok | fehler | netz | default */
 const heizungCalls = [];
+const heizungUrls = [];   /* Runde 6: Token-Nachweis im POST */
 
 let fehlgeschlagen = 0;
 function pruef(name, bedingung, extra = "") {
@@ -57,9 +58,10 @@ async function neueSeite(browser) {
     await route.fulfill({ status: 200, contentType: "application/json",
       body: JSON.stringify(statusJsonMit(naechster)) });
   });
-  await seite.route("**/gemma-live/heizung", async (route) => {
+  await seite.route("**/gemma-live/heizung*", async (route) => {
     const body = JSON.parse(route.request().postData() || "{}");
     heizungCalls.push(body);
+    heizungUrls.push(route.request().url());
     if (heizungVerhalten === "fehler") {
       await route.fulfill({ status: 502, contentType: "application/json",
         body: JSON.stringify({ ok: false, text: "Heizung: tado meldet Fehler" }) });
@@ -264,7 +266,10 @@ async function main() {
     await s.close();
   }
 
-  /* ---------- 7) Fehlerfall: Rollback + roter Flash + Fehltext ---------- */
+  /* ---------- 7) Fehlerfall: Einmal-Retry, DANN Rollback + Flash + Text ----
+     (Runde 6, 23.10.: der erste Fehlversuch haelt den optimistic Stand,
+     nach 2 s kommt genau EIN Retry, erst der zweite Fehlversuch rollt
+     zurueck - "Heizung nicht erreichbar" am Echo bei intaktem Server) --- */
   console.log("Fehlerfall:");
   {
     heizungCalls.length = 0; heizungVerhalten = "fehler"; statusPlan = [];
@@ -273,20 +278,26 @@ async function main() {
     await s.tap('[data-zone="Wohnzimmer"] .hz-plus');
     await warte(120);
     pruef("optimistisch 20,5° angezeigt", (await sollVon(s, "Wohnzimmer")) === "20,5°");
-    await warte(900);
-    pruef("Fehler: Rollback auf 20°", (await sollVon(s, "Wohnzimmer")) === "20,0°",
+    await warte(1000);
+    pruef("1. Fehlversuch rollt noch NICHT zurueck (Retry laeuft)",
+      (await sollVon(s, "Wohnzimmer")) === "20,5°", await sollVon(s, "Wohnzimmer"));
+    await warte(2600);
+    pruef("genau 2 Versuche (1 Retry)", heizungCalls.length === 2,
+      String(heizungCalls.length));
+    pruef("Fehler: Rollback auf 20° nach Retry", (await sollVon(s, "Wohnzimmer")) === "20,0°",
       await sollVon(s, "Wohnzimmer"));
     const fehler = await s.evaluate(() => ({
       text: (document.querySelector(".heizung-fehler-text") || {}).textContent || "",
       flash: !!document.querySelector(".heizung-zeile.hz-fehler"),
     }));
-    pruef("Fehltext sichtbar", fehler.text.includes("tado"), fehler.text);
+    pruef("Fehltext sichtbar (echter tado-Text)",
+      fehler.text.includes("tado"), fehler.text);
     pruef("roter Flash an der Zeile", fehler.flash === true);
     await s.screenshot({ path: "/tmp/heizung-fehler.png" });
     await s.close();
   }
 
-  /* ---------- 8) Netz-Fehler (abort): Rollback ohne Crash ---------- */
+  /* ---------- 8) Netz-Fehler (abort): Retry rettet, sonst Rollback ---------- */
   console.log("Netz-Fehler:");
   {
     heizungCalls.length = 0; heizungVerhalten = "netz"; statusPlan = [];
@@ -295,8 +306,15 @@ async function main() {
     const crash = [];
     s.on("pageerror", (e) => crash.push(String(e)));
     await s.tap('[data-zone="Wohnzimmer"] .hz-plus');
-    await warte(900);
-    pruef("Netz-Fehler: Rollback auf 20°", (await sollVon(s, "Wohnzimmer")) === "20,0°");
+    await warte(1000);
+    pruef("Netz-Fehler: Rollback noch NICHT sofort",
+      (await sollVon(s, "Wohnzimmer")) === "20,5°");
+    heizungVerhalten = "ok";   /* 2. Versuch geht durch -> kein Rollback */
+    await warte(2600);
+    pruef("Netz-Fehler: 2. Versuch rettet, kein Rollback",
+      (await sollVon(s, "Wohnzimmer")) === "20,5°", await sollVon(s, "Wohnzimmer"));
+    pruef("genau 2 Versuche (1 Retry)", heizungCalls.length === 2,
+      String(heizungCalls.length));
     pruef("kein JS-Crash", crash.length === 0, crash.join(" | "));
     await s.close();
   }
@@ -357,6 +375,60 @@ async function main() {
       await s.screenshot({ path: "/tmp/heizung-overflow-" + n + "zonen.png" });
       await s.close();
     }
+  }
+
+  /* ---------- 10) Runde 6: Token im POST + Warmwasser-Status-Zeile ------- */
+  console.log("Token + Warmwasser (Runde 6):");
+  {
+    /* Token: nginx verlangt $arg_token an /gemma-live/heizung - der POST
+       muss ihn ab jetzt immer mitbringen (403-Wurzel von Kays "Heizung
+       nicht erreichbar"). */
+    heizungCalls.length = 0; heizungUrls.length = 0;
+    heizungVerhalten = "ok"; statusPlan = [];
+    zonenMock = [{ name: "Wohnzimmer", ist: 20, soll: 20, power: "ON" }];
+    const s = await neueSeite(browser);
+    await s.tap('[data-zone="Wohnzimmer"] .hz-plus');
+    await warte(900);
+    pruef("Set-Request traegt Token",
+      heizungUrls.length === 1 && heizungUrls[0].includes("token=") &&
+      heizungUrls[0].split("token=")[1].length > 5,
+      heizungUrls.join(" | "));
+
+    /* Warmwasser ohne sinnvolles Soll (tado liefert heute soll=null,
+       power OFF, modus zeitplan): Zeile bleibt IMMER sichtbar, zeigt
+       "Zeitplan" statt Soll, bekommt KEINEN Stepper, crash nicht. */
+    heizungCalls.length = 0; heizungUrls.length = 0;
+    zonenMock = [
+      { name: "Wohnzimmer", ist: 20, soll: 20, power: "ON" },
+      { name: "Warmwasser", ist: null, soll: null, feuchte: null,
+        power: "OFF", modus: "zeitplan" },
+    ];
+    const w = await neueSeite(browser);
+    const crash = [];
+    w.on("pageerror", (e) => crash.push(String(e)));
+    const ww = await w.evaluate(() => {
+      const zeile = document.querySelector('[data-zone="Warmwasser"]');
+      if (!zeile) return { da: false };
+      return {
+        da: true,
+        text: zeile.textContent,
+        stepper: !!zeile.querySelector(".hz-plus"),
+        flamme: !!zeile.querySelector(".flamme"),
+      };
+    });
+    pruef("Warmwasser-Zeile sichtbar (soll null)", ww.da && ww.text.includes("Warmwasser"));
+    pruef("Warmwasser zeigt Zeitplan-Status", ww.da && ww.text.includes("Zeitplan"),
+      ww.text);
+    pruef("Warmwasser ohne Stepper", ww.da && !ww.stepper);
+    pruef("Warmwasser mit Flamme (aus-Grau)", ww.da && ww.flamme);
+    pruef("kein JS-Crash bei WW null", crash.length === 0, crash.join(" | "));
+    /* und der Tap aufs Wohnzimmer funktioniert daneben weiterhin */
+    await w.tap('[data-zone="Wohnzimmer"] .hz-plus');
+    await warte(700);
+    pruef("Tap neben WW unverändert ok", heizungUrls.length === 1);
+    await w.screenshot({ path: "/tmp/heizung-ww-zeitplan.png" });
+    await s.close();
+    await w.close();
   }
 
   await browser.close();
