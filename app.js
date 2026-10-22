@@ -1466,6 +1466,16 @@ function heiztAktiv(z) {
   return z.power === "ON";
 }
 
+/* Warmwasser gegenueber Heizkoerper-Zonen: tado-DHW meldet sich mit
+   Namen "Warmwasser", einem Soll DEUTLICH ueber 25 (Heizlimit) und ohne
+   Ist-Temperatur. Ohne Soll gilt: kein Ist, aber power-Feld = Warmwasser
+   (ausgeschaltete Raeume haben weiterhin eine Ist-Temperatur). */
+function heizungIstWasser(z) {
+  if ((z.name || "").toLowerCase().indexOf("wasser") >= 0) return true;
+  if (typeof z.soll === "number") return z.soll > HEIZUNG_MAX;
+  return typeof z.ist !== "number" && typeof z.power === "string";
+}
+
 /* ---------------- Heizung: Touch-Soll (Wanddisplay) ----------------
    An der Echo Show 15 haengt die Kachel an der Wand: grosse +/- Buttons
    neben jeder Zone aendern das tado-Soll direkt (Schritt 0,5 °C, 5 bis
@@ -1540,19 +1550,29 @@ function kachelHeizung(zonen) {
     if (!aktiv) heiztAlle = false;
     zeile.className = "heizung-zeile" + (aktiv ? " heizt" : " heizt-aus");
     zeile.dataset.zone = name;
-    /* Gasflamme: animiert, wenn geheizt wird (flamme-an), sonst grau aus.
-       --fstaerke = Hoehe/Breite nach Aufheiz-Bedarf, --fgeschw = Flacker-
-       tempo (staerkere Flamme flackert etwas schneller). Reagiert auf den
+    /* Zonen-Symbol nach Typ: Raum-Zonen (mit Soll) bekommen die animierte
+       Sonne, Warmwasser (kein Soll, power-Feld) die Gasflamme. Beide leben
+       IMMER — aus heisst dezent (kleiner, langsamer, dunkler), nie still.
+       --fstaerke/--sstaerke = Groesse nach Aufheiz-Bedarf, --fgeschw =
+       Flackertempo (staerkere Flamme flackert schneller). Reagiert auf den
        optimistischen Soll mit. */
-    const flamme = document.createElement("span");
-    flamme.className = "flamme" + (aktiv ? " flamme-an" : " flamme-aus");
-    if (aktiv) {
-      const staerke = flammeStaerke(ze);
-      flamme.style.setProperty("--fstaerke", staerke.toFixed(2));
-      flamme.style.setProperty("--fgeschw", (1.12 - staerke * 0.28).toFixed(2) + "s");
+    const symbol = document.createElement("span");
+    if (heizungIstWasser(z)) {
+      symbol.className = "flamme" + (aktiv ? " flamme-an" : " flamme-aus");
+      if (aktiv) {
+        const staerke = flammeStaerke(ze);
+        symbol.style.setProperty("--fstaerke", staerke.toFixed(2));
+        symbol.style.setProperty("--fgeschw", (1.12 - staerke * 0.28).toFixed(2) + "s");
+      }
+      symbol.innerHTML = "<span class='flamme-schicht'></span>" +
+        "<span class='flamme-kern'></span>";
+    } else {
+      const staerke = aktiv ? flammeStaerke(ze) : 0.78;
+      symbol.className = "sonne" + (aktiv ? " sonne-an" : " sonne-aus");
+      symbol.style.setProperty("--sstaerke", staerke.toFixed(2));
+      symbol.innerHTML = "<span class='sonne-strahlen'></span>" +
+        "<span class='sonne-kern'></span>";
     }
-    flamme.innerHTML = "<span class='flamme-schicht'></span>" +
-      "<span class='flamme-kern'></span>";
     const nameEl = document.createElement("span");
     nameEl.className = "heizung-name";
     nameEl.textContent = name;
@@ -1570,7 +1590,7 @@ function kachelHeizung(zonen) {
       zeile.classList.add("heizung-breit");
       const kopf = document.createElement("span");
       kopf.className = "heizung-kopf";
-      kopf.append(flamme, nameEl, wert);   /* Ist rechts neben den Namen */
+      kopf.append(symbol, nameEl, wert);   /* Ist rechts neben den Namen */
       const fuss = document.createElement("span");
       fuss.className = "heizung-fuss";
       if (state.heizungLaeuft[name]) zeile.classList.add("hz-laeuft");
@@ -1582,7 +1602,7 @@ function kachelHeizung(zonen) {
       const texte = document.createElement("span");
       texte.className = "heizung-texte";
       texte.append(nameEl, wert);
-      zeile.append(flamme, texte);
+      zeile.append(symbol, texte);
       if (heizungStepperMoeglich(ze)) zeile.append(heizungStepper(z, ze, zeile));
       if (state.heizungLaeuft[name]) zeile.classList.add("hz-laeuft");
       if ((state.heizungFlash[name] || 0) > Date.now()) zeile.classList.add("hz-fehler");
@@ -2293,11 +2313,11 @@ function kachelWelt(d) {
     stuecke.push([zahlDe(v.temp_celsius, 1) + "°", "", "thermo"]);
   }
   const dienste = v.dienste;
-  if (dienste && typeof dienste.failed === "number") {
-    const down = dienste.failed > 0;
+  /* "0 Dienste down" ist kein Wert fuer die Wand: nur melden, wenn
+     wirklich etwas down ist (wie beim Warndreieck). */
+  if (dienste && typeof dienste.failed === "number" && dienste.failed > 0) {
     stuecke.push([dienste.failed + (dienste.failed === 1 ? " Dienst down" : " Dienste down"),
-                  down ? "dienst-down rot" : "dienst-down",
-                  down ? "warn" : ""]);
+                  "dienst-down rot", "warn"]);
   }
   stuecke.forEach(([text, klasse, iconArt], i) => {
     if (i) zeile2.append(" · ");

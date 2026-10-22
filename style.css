@@ -1691,18 +1691,98 @@ main:not(.ohne-fotos) .gespraech-kachel .kachel-label { letter-spacing: 0.14em; 
 .heizung-zeile.heizt .flamme {
   animation: flamme-zeile-atmen calc(var(--fgeschw, 0.95s) * 2.6) ease-in-out infinite;
 }
-/* aus: kleine graue Flammen-Andeutung */
+/* aus: kleine graue Flammen-Andeutung — GLIMMT weiter (nur eben ruhig),
+   damit an der Wand auch ausgeschaltete Zonen leben (Kays Feedback:
+   "bewegt sich nix"). */
 .flamme-aus .flamme-schicht {
   position: absolute;
   left: 22%; right: 22%; top: 26%; bottom: 0;
   background: rgba(143, 163, 189, 0.28);
   border-radius: 50% 50% 50% 50% / 68% 68% 32% 32%;
+  transform-origin: 50% 100%;
+  animation: flamme-glimmen 3.8s ease-in-out infinite;
 }
 .flamme-aus .flamme-kern {
   position: absolute;
   left: 38%; right: 38%; bottom: 0; height: 24%;
   background: rgba(62, 212, 238, 0.16);
   border-radius: 50%;
+  animation: flamme-kern-glimmen 4.6s ease-in-out infinite;
+}
+@keyframes flamme-glimmen {
+  0%, 100% { opacity: 0.7; transform: scaleY(1) scaleX(1) rotate(0deg); }
+  35% { opacity: 0.95; transform: scaleY(1.08) scaleX(0.95) rotate(-1.2deg); }
+  65% { opacity: 0.78; transform: scaleY(0.93) scaleX(1.04) rotate(1deg); }
+}
+@keyframes flamme-kern-glimmen {
+  0%, 100% { opacity: 0.45; transform: scale(1); }
+  50% { opacity: 0.85; transform: scale(1.14, 1.22); }
+}
+
+/* --- Sonne in Raum-Zonen (22.10.26, Kay: "Temperatur soll eine Sonne
+   sein was zu Temperatur passt"): Strahlenkranz rotiert LANGSAM IMMER,
+   Kern pulsiert. Beim Heizen (--sstaerke, sonne-an) alles groesser,
+   schneller und mit warmem Glow; aus = dezent, aber NIE still. */
+.sonne {
+  position: relative;
+  width: calc(2rem * var(--sstaerke, 1));
+  height: calc(2rem * var(--sstaerke, 1));
+  flex: none;
+  align-self: center;
+  /* Opazitaet-Grenzen der Strahlen: sonne-an ueberschreibt sie Richtung voll */
+  --omin: 0.5;
+  --omax: 0.85;
+}
+.sonne span { position: absolute; inset: 0; }
+.sonne-kern {
+  inset: 28%;
+  border-radius: 50%;
+  background: radial-gradient(circle at 40% 36%,
+              #fff6cf 0%, #ffd76b 52%, #f2a01f 100%);
+  animation: sonne-kern-puls 3.2s ease-in-out infinite;
+}
+/* Strahlen: 8 dicke Segmente als repeating-conic-gradient, per radialer
+   Maske zu einem Strahlenkranz ausgeschnitten; Rotation + Puls laufen
+   gemeinsam. Muss auch auf Kachelgroesse lesbar bleiben, deshalb 10deg
+   Strahlbreite statt feiner Linien. */
+.sonne-strahlen {
+  background: repeating-conic-gradient(from 0deg,
+              rgba(255, 205, 92, 0.95) 0deg 10deg, transparent 10deg 45deg);
+  -webkit-mask: radial-gradient(circle, transparent 30%, #000 32%, #000 58%, transparent 60%);
+          mask: radial-gradient(circle, transparent 30%, #000 32%, #000 58%, transparent 60%);
+  animation: sonne-strahlen-drehen 26s linear infinite,
+             sonne-strahlen-puls 3.2s ease-in-out infinite;
+}
+.sonne-an {
+  --omin: 0.82;
+  --omax: 1;
+  transform: scale(1.14);
+}
+.sonne-an .sonne-kern {
+  animation-duration: 1.7s;
+  box-shadow: 0 0 0.8rem rgba(255, 190, 70, 0.62);
+}
+.sonne-an .sonne-strahlen {
+  animation-duration: 14s, 1.7s;
+}
+@keyframes sonne-strahlen-drehen {
+  to { transform: rotate(360deg); }
+}
+@keyframes sonne-strahlen-puls {
+  0%, 100% { opacity: var(--omin, 0.5); }
+  50% { opacity: var(--omax, 0.85); }
+}
+@keyframes sonne-kern-puls {
+  0%, 100% { transform: scale(0.93); filter: brightness(0.94); }
+  50% { transform: scale(1.07); filter: brightness(1.1); }
+}
+/* Zeile atmet am Sonnen-Glow (an), wie bei der Flamme */
+@keyframes sonne-zeile-atmen {
+  0%, 100% { filter: drop-shadow(0 0 0.1rem rgba(255, 205, 92, 0.2)); }
+  50% { filter: drop-shadow(0 0 0.4rem rgba(255, 205, 92, 0.5)); }
+}
+.heizung-zeile.heizt .sonne {
+  animation: sonne-zeile-atmen calc(3.2s * 2.4) ease-in-out infinite;
 }
 /* ueberall heisst es: dezenter warmer Glow an der Kachel */
 #k-heizung.heizung-voll {
@@ -1751,6 +1831,8 @@ main:not(.ohne-fotos) .gespraech-kachel .kachel-label { letter-spacing: 0.14em; 
 body.tab-weg .wind-svg, body.tab-weg .wtag-svg .w-regen line,
 body.tab-weg .wtag-svg .w-blitz, body.tab-weg .wtag-svg .w-wolke,
 body.tab-weg .flamme-an .flamme-schicht, body.tab-weg .flamme-an .flamme-kern,
+body.tab-weg .flamme-aus .flamme-schicht, body.tab-weg .flamme-aus .flamme-kern,
+body.tab-weg .sonne-kern, body.tab-weg .sonne-strahlen,
 body.tab-weg .markt-stuermisch .markt-wort,
 body.tab-weg .markt-leichter_wind .markt-wort,
 body.tab-weg .markt-stuermisch .ms-marker,
@@ -1761,13 +1843,16 @@ body.tab-weg .server-icon-wrap.server-rot .si-pin,
 body.tab-weg .server-icon-wrap.server-gelb .si-led,
 body.tab-weg .server-icon-wrap.server-rot .si-led,
 body.tab-weg .mit-warn .server-icon,
-body.tab-weg .heizung-zeile.heizt .flamme {
+body.tab-weg .heizung-zeile.heizt .flamme,
+body.tab-weg .heizung-zeile.heizt .sonne {
   animation-play-state: paused !important;
 }
 @media (prefers-reduced-motion: reduce) {
   .wtag-wind-alarm .wind-svg, .wtag-wind-alarm .wl2, .wtag-wind-alarm .wl3,
   .wtag-svg .w-regen line, .wtag-svg .w-blitz, .wtag-svg .w-wolke,
   .flamme-an .flamme-schicht, .flamme-an .flamme-kern,
+  .flamme-aus .flamme-schicht, .flamme-aus .flamme-kern,
+  .sonne-kern, .sonne-strahlen,
   .markt-stuermisch .markt-wort, .markt-leichter_wind .markt-wort,
   .markt-stuermisch .ms-marker,
   .wtag-wind-alarm .wtag-wind-label,
@@ -1777,7 +1862,8 @@ body.tab-weg .heizung-zeile.heizt .flamme {
   .server-icon-wrap.server-gelb .si-led,
   .server-icon-wrap.server-rot .si-led,
   .mit-warn .server-icon,
-  .heizung-zeile.heizt .flamme {
+  .heizung-zeile.heizt .flamme,
+  .heizung-zeile.heizt .sonne {
     animation: none !important;
   }
 }
