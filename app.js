@@ -1438,20 +1438,43 @@ function heuteStr() {
   return d.getFullYear() + "-" + mon + "-" + tag;
 }
 
+/* Heizt die Zone wirklich? tado-"power" heisst nur "Zone aktiv"
+   (Zeitplan/Manuell an): Wohnzimmer meldet power ON, waehrend Ist 23,7°
+   schon weit ueber Soll 20° liegt. Heissen tut sie nur, wenn Soll (fast)
+   ueber Ist liegt -> Heuristik soll > ist - 0.5 UND soll >= 20.
+   Ohne Ist-Wert (Warmwasser) zaehlt power ON als heizend; fehlt power
+   (alter Server/Cache), bleibt die reine Soll/Ist-Heuristik. */
+function heiztAktiv(z) {
+  if (typeof z.soll !== "number" || z.soll < 20) return false;
+  if (z.power === "OFF") return false;
+  if (typeof z.ist === "number") return z.soll > z.ist - 0.5;
+  return z.power === "ON";
+}
+
 function kachelHeizung(zonen) {
   const box = $("heizung-liste");
+  const kachel = $("k-heizung");
   box.innerHTML = "";
   state.kachelDaten["k-heizung"] = zonen || null;
   if (!zonen || !zonen.length) {
+    if (kachel) kachel.classList.remove("heizung-voll");
     const leer = document.createElement("div");
     leer.className = "kachel-zusatz";
     leer.textContent = "keine Werte";
     box.append(leer);
     return;
   }
+  let heiztAlle = true;
   for (const z of zonen) {
     const zeile = document.createElement("div");
-    zeile.className = "heizung-zeile";
+    const aktiv = heiztAktiv(z);
+    if (!aktiv) heiztAlle = false;
+    zeile.className = "heizung-zeile" + (aktiv ? " heizt" : " heizt-aus");
+    /* Gasflamme: animiert, wenn geheizt wird (flamme-an), sonst grau aus */
+    const flamme = document.createElement("span");
+    flamme.className = "flamme" + (aktiv ? " flamme-an" : " flamme-aus");
+    flamme.innerHTML = "<span class='flamme-schicht'></span>" +
+      "<span class='flamme-kern'></span>";
     const name = document.createElement("span");
     name.className = "heizung-name";
     name.textContent = z.name || "—";
@@ -1460,9 +1483,14 @@ function kachelHeizung(zonen) {
     const ist = (typeof z.ist === "number") ? z.ist.toFixed(1).replace(".", ",") + "°" : "—";
     const soll = (typeof z.soll === "number") ? z.soll.toFixed(1).replace(".", ",") + "°" : "";
     wert.textContent = soll ? `${ist} · soll ${soll}` : ist;
-    zeile.append(name, wert);
+    const texte = document.createElement("span");
+    texte.className = "heizung-texte";
+    texte.append(name, wert);
+    zeile.append(flamme, texte);
     box.append(zeile);
   }
+  /* Ueberall heisst es: dezenter warmer Glow an der ganzen Kachel */
+  if (kachel) kachel.classList.toggle("heizung-voll", heiztAlle && zonen.length > 0);
 }
 
 const TAGE_KURZ = ["So", "Mo", "Di", "Mi", "Do", "Fr", "Sa"];
@@ -1689,7 +1717,8 @@ async function klangSchalten() {
 /* ---------------- Wetter: 3 Tage (Open-Meteo, kein Key) ---------------- */
 
 const WETTER_URL = "https://api.open-meteo.com/v1/forecast?latitude=53.8655&longitude=10.6866" +
-  "&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max" +
+  "&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max," +
+  "wind_speed_10m_max,wind_gusts_10m_max,wind_direction_10m_dominant" +
   "&timezone=Europe%2FBerlin&forecast_days=3";
 
 async function wetterHolen() {
@@ -1730,7 +1759,7 @@ function wetterIcon(code) {
     '<line x1="13" y1="13" x2="19" y2="19"/><line x1="45" y1="45" x2="51" y2="51"/>' +
     '<line x1="51" y1="13" x2="45" y2="19"/><line x1="19" y1="45" x2="13" y2="51"/></g>';
   const sonne = '<circle cx="32" cy="32" r="12" fill="#ffd166"/>' + strahlen;
-  const wolke = '<path d="M18 42 a9 9 0 0 1 1.5-17.9 a12 12 0 0 1 23-3.2 a8.5 8.5 0 0 1 3.5 16.3 z" fill="#b9c6da"/>';
+  const wolke = '<path class="w-wolke" d="M18 42 a9 9 0 0 1 1.5-17.9 a12 12 0 0 1 23-3.2 a8.5 8.5 0 0 1 3.5 16.3 z" fill="#b9c6da"/>';
   const formen = {
     sonne: sonne,
     heiter: '<circle cx="24" cy="22" r="9" fill="#ffd166"/>' + wolke,
@@ -1738,18 +1767,53 @@ function wetterIcon(code) {
     nebel: '<g stroke="#b9c6da" stroke-width="4" stroke-linecap="round">' +
       '<line x1="12" y1="24" x2="52" y2="24"/><line x1="16" y1="34" x2="48" y2="34"/>' +
       '<line x1="12" y1="44" x2="52" y2="44"/></g>',
-    regen: wolke + '<g stroke="#4fa3ff" stroke-width="3.5" stroke-linecap="round">' +
+    regen: wolke + '<g class="w-regen" stroke="#4fa3ff" stroke-width="3.5" stroke-linecap="round">' +
       '<line x1="24" y1="46" x2="21" y2="54"/><line x1="33" y1="46" x2="30" y2="56"/>' +
       '<line x1="42" y1="46" x2="39" y2="54"/></g>',
-    schauer: wolke + '<g stroke="#4fa3ff" stroke-width="3.5" stroke-linecap="round">' +
+    schauer: wolke + '<g class="w-regen" stroke="#4fa3ff" stroke-width="3.5" stroke-linecap="round">' +
       '<line x1="22" y1="47" x2="18" y2="55"/><line x1="34" y1="47" x2="30" y2="57"/>' +
       '<line x1="46" y1="47" x2="42" y2="55"/></g>' +
       '<line x1="40" y1="36" x2="34" y2="44" stroke="#4fa3ff" stroke-width="3" stroke-linecap="round"/>',
     schnee: wolke + '<g fill="#dff2ff"><circle cx="24" cy="50" r="2.4"/><circle cx="33" cy="54" r="2.4"/>' +
       '<circle cx="42" cy="50" r="2.4"/></g>',
-    blitz: wolke + '<path d="M33 42 L26 54 L32 54 L29 62 L38 50 L32 50 Z" fill="#ffd166"/>',
+    blitz: wolke + '<path class="w-blitz" d="M33 42 L26 54 L32 54 L29 62 L38 50 L32 50 Z" fill="#ffd166"/>',
   };
   return "<svg viewBox='0 0 64 64' class='wtag-svg' aria-hidden='true'>" + (formen[art] || wolke) + "</svg>";
+}
+
+/* Wind-Stufen nach Boeen (km/h, Tagesmaximum von Open-Meteo):
+   ab 60 = Sturm (orange, Warnung), ab 85 = schwerer Sturm (dunkelrot).
+   0 heisst "keine Warnstufe". Fehlt das Feld (alter gemma_wetter-Cache
+   im localStorage), bleibt es bei 0 - die Kachel rendert einfach ohne
+   Windzeile, kein Crash. */
+function windStufe(boeen) {
+  if (typeof boeen !== "number") return 0;
+  if (boeen >= 85) return 2;
+  if (boeen >= 60) return 1;
+  return 0;
+}
+
+/* wehende Windlinien (Bewegung macht das CSS: wind-wehen) */
+function windIcon(stufe) {
+  const art = stufe === 2 ? " wind-schwer" : (stufe === 1 ? " wind-sturm" : "");
+  return "<svg viewBox='0 0 64 64' class='wind-svg" + art + "' aria-hidden='true'>" +
+    "<path class='wl wl1' d='M8 20 h26 a7 7 0 1 0 -7 -9' />" +
+    "<path class='wl wl2' d='M8 34 h38 a7 7 0 1 1 -7 9' />" +
+    "<path class='wl wl3' d='M8 48 h20 a6 6 0 1 1 -6 8' /></svg>";
+}
+
+/* Windzeile einer Tageszelle: kleines Icon + Boeen. Ohne Wind-Daten
+   kommt ein leerer String (Cache-Toleranz). Ab Sturm steht das Wort
+   als pulsierender Warn-Badge dabei. */
+function windZeile(tage, i) {
+  const roh = tage.wind_gusts_10m_max;
+  if (!roh || roh[i] == null) return "";
+  const boeen = Math.round(roh[i]);
+  const wst = windStufe(boeen);
+  const wort = wst === 2 ? "Schwerer Sturm" : (wst === 1 ? "Sturm" : "Böen");
+  return '<div class="wtag-wind' + (wst ? " wtag-wind-alarm" : "") + '">' +
+    windIcon(wst) + "<b>" + boeen + " km/h</b>" +
+    '<span class="wtag-wind-label">' + wort + "</span></div>";
 }
 
 function wochentagKurz(iso) {
@@ -1761,8 +1825,10 @@ function wochentagKurz(iso) {
 function kachelWetter(d) {
   state.wetter = d;
   const box = $("wetter-tage");
+  const kachel = $("k-wetter");
   box.innerHTML = "";
   if (!d || !d.daily || !d.daily.time || !d.daily.time.length) {
+    if (kachel) kachel.classList.remove("wetter-sturm", "wetter-schwer");
     const leer = document.createElement("div");
     leer.className = "kachel-zusatz";
     leer.textContent = "Wetter gerade nicht erreichbar";
@@ -1772,7 +1838,9 @@ function kachelWetter(d) {
   const tage = d.daily;
   for (let i = 0; i < Math.min(3, tage.time.length); i++) {
     const zelle = document.createElement("div");
-    zelle.className = "wtag" + (i === 0 ? " wtag-heute" : "");
+    const wst = windStufe(tage.wind_gusts_10m_max ? tage.wind_gusts_10m_max[i] : null);
+    zelle.className = "wtag" + (i === 0 ? " wtag-heute" : "") +
+      (wst === 2 ? " wtag-schwer" : (wst === 1 ? " wtag-sturm" : ""));
     const name = i === 0 ? "heute" : wochentagKurz(tage.time[i]);
     const regen = (tage.precipitation_probability_max[i] == null)
       ? "—" : Math.round(tage.precipitation_probability_max[i]) + " %";
@@ -1781,8 +1849,16 @@ function kachelWetter(d) {
       '<div class="wtag-icon">' + wetterIcon(tage.weather_code[i]) + "</div>" +
       '<div class="wtag-werte"><b>' + Math.round(tage.temperature_2m_max[i]) +
       "°</b> / " + Math.round(tage.temperature_2m_min[i]) + "°</div>" +
-      '<div class="wtag-regen">' + regen + " Regen</div>";
+      '<div class="wtag-regen">' + regen + " Regen</div>" +
+      windZeile(tage, i);
     box.append(zelle);
+  }
+  /* Sturm heute: sofort an der Kachel sichtbar (Warnglow am Rahmen) */
+  if (kachel) {
+    const heuteStufe = windStufe(tage.wind_gusts_10m_max
+      ? tage.wind_gusts_10m_max[0] : null);
+    kachel.classList.toggle("wetter-sturm", heuteStufe === 1);
+    kachel.classList.toggle("wetter-schwer", heuteStufe === 2);
   }
   state.kachelDaten["k-wetter"] = d;
 }
@@ -2332,7 +2408,8 @@ function overlayOeffnen(id) {
           '<div class="wtag-icon gross">' + wetterIcon(tage.weather_code[i]) + "</div>" +
           '<div class="ov-wtag-temp"><b>' + Math.round(tage.temperature_2m_max[i]) +
           "°</b> / " + Math.round(tage.temperature_2m_min[i]) + "°</div>" +
-          '<div class="wtag-regen">' + regen + " Regen</div>";
+          '<div class="wtag-regen">' + regen + " Regen</div>" +
+          windZeile(tage, i);
         trend.append(zelle);
       }
       inhalt.append(trend);
@@ -2597,7 +2674,8 @@ function overlayOeffnen(id) {
     for (const z of daten) {
       const ist = (typeof z.ist === "number") ? z.ist.toFixed(1).replace(".", ",") + "°" : "—";
       const soll = (typeof z.soll === "number") ? z.soll.toFixed(1).replace(".", ",") + "°" : "—";
-      zeileInOverlay(inhalt, z.name || "—", `${ist} ist · ${soll} soll`);
+      zeileInOverlay(inhalt, z.name || "—",
+        `${ist} ist · ${soll} soll` + (heiztAktiv(z) ? " · heizt" : " · aus"));
     }
   } else if (id === "k-termine" && Array.isArray(daten)) {
     const kommend = termineAufbereiten(daten).slice(0, 10);
