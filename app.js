@@ -1470,9 +1470,16 @@ function kachelHeizung(zonen) {
     const aktiv = heiztAktiv(z);
     if (!aktiv) heiztAlle = false;
     zeile.className = "heizung-zeile" + (aktiv ? " heizt" : " heizt-aus");
-    /* Gasflamme: animiert, wenn geheizt wird (flamme-an), sonst grau aus */
+    /* Gasflamme: animiert, wenn geheizt wird (flamme-an), sonst grau aus.
+       --fstaerke = Hoehe/Breite nach Aufheiz-Bedarf, --fgeschw = Flacker-
+       tempo (staerkere Flamme flackert etwas schneller). */
     const flamme = document.createElement("span");
     flamme.className = "flamme" + (aktiv ? " flamme-an" : " flamme-aus");
+    if (aktiv) {
+      const staerke = flammeStaerke(z);
+      flamme.style.setProperty("--fstaerke", staerke.toFixed(2));
+      flamme.style.setProperty("--fgeschw", (1.12 - staerke * 0.28).toFixed(2) + "s");
+    }
     flamme.innerHTML = "<span class='flamme-schicht'></span>" +
       "<span class='flamme-kern'></span>";
     const name = document.createElement("span");
@@ -1879,6 +1886,42 @@ function serverStufe(wert) {
   return wert >= 90 ? "server-rot" : wert >= 70 ? "server-gelb" : "server-gruen";
 }
 
+/* Duenne Mono-Line-Icons fuer die Server-Kachel (keine Emojis). Farbe und
+   Animation steuert CSS ueber .server-icon + die serverStufe-Klassen
+   (server-gruen/server-gelb/server-rot) auf dem umgebenden Wrap. */
+function serverIconSvg(art) {
+  const formen = {
+    cpu: '<rect x="6.5" y="6.5" width="11" height="11" rx="2"/>' +
+         '<rect x="10.2" y="10.2" width="3.6" height="3.6" rx="0.9"/>' +
+         '<g class="si-pin"><path d="M9 6.5V3.8M12 6.5V3.8M15 6.5V3.8' +
+         'M9 17.5v2.7M12 17.5v2.7M15 17.5v2.7M6.5 9H3.8M6.5 12H3.8M6.5 15H3.8' +
+         'M17.5 9h2.7M17.5 12h2.7M17.5 15h2.7"/></g>',
+    ram: '<path d="M2.8 8.6h18.4v5.6h-2.6l-1.4 2.2H6.8l-1.4-2.2H2.8z"/>' +
+         '<path d="M7.4 10.8v1.6M10.7 10.8v1.6M14 10.8v1.6M17.3 10.8v1.6"/>',
+    disk: '<rect x="2.8" y="6.8" width="18.4" height="10.4" rx="2.2"/>' +
+          '<circle cx="9.2" cy="12" r="2.7"/><path d="M14.6 9.9h3.4"/>' +
+          '<circle class="si-led" cx="18" cy="14.1" r="1"/>',
+    uhr: '<circle cx="12" cy="12.6" r="8.2"/><path d="M12 7.8v4.8l3.1 1.9"/>',
+    thermo: '<path d="M12 3.6a2.3 2.3 0 0 1 2.3 2.3v7.2a4.3 4.3 0 1 1-4.6 0V5.9' +
+            'A2.3 2.3 0 0 1 12 3.6z"/><path d="M12 9.4v5.8"/>',
+    warn: '<path d="M12 4.2 21 19.4H3z"/><path d="M12 10v4.2"/>' +
+          '<path d="M12 16.9v0.01"/>'
+  };
+  return '<svg class="server-icon" viewBox="0 0 24 24" aria-hidden="true">' +
+    (formen[art] || "") + "</svg>";
+}
+
+/* Flammenstaerke 0.6 bis 1.3 (nur Deko-Heuristik): Grundgroesse plus
+   Antrieb. Je weiter Ist unter Soll liegt (Zone heizt hoch) und je
+   hoeher das Soll selbst ist, desto groesser wächst die Flamme. */
+function flammeStaerke(z) {
+  const soll = (typeof z.soll === "number") ? z.soll : 21;
+  const rest = (typeof z.ist === "number")
+    ? Math.min(Math.max(soll - z.ist, 0), 6) : 1;
+  const sollFaktor = Math.min(Math.max((soll - 19) / 8, 0), 1);
+  return Math.min(Math.round((0.6 + sollFaktor * 0.35 + rest * 0.07) * 100) / 100, 1.3);
+}
+
 function uptimeMenschlich(sek) {
   const tage = Math.floor(sek / 86400);
   const stunden = Math.floor((sek % 86400) / 3600);
@@ -1890,27 +1933,35 @@ function uptimeMenschlich(sek) {
 }
 
 function kachelWelt(d) {
-  /* SERVER-Kachel: grosse Zahlen CPU/RAM/Disk, Zeile 2 = Uptime + Temp
-     + Dienste-down (Temp ist Text, damit die 3 grossen Zahlen in die
-     schmale Spalte neben der Markt-Kachel passen, ohne zu wrappen).
-     Die App-Ampel lebt nur im Overlay. */
+  /* SERVER-Kachel: grosse Zahlen CPU/RAM/Disk mit kleinen Icons daneben,
+     Zeile 2 = Uptime + Temp + Dienste-down (mit Mini-Icons). Die Icons
+     sitzen INLINE neben der Zahl und bleiben klein, damit die 3 grossen
+     Zahlen weiter in die schmale Spalte neben der Markt-Kachel passen,
+     ohne zu wrappen. Die App-Ampel lebt nur im Overlay. */
   const v = d.vital || {};
   const box = $("server-zahlen");
   box.innerHTML = "";
-  const werte = [["CPU", v.cpu_prozent], ["RAM", v.ram_prozent],
-                 ["Disk", v.disk_prozent]];
+  const werte = [["CPU", v.cpu_prozent, "cpu"], ["RAM", v.ram_prozent, "ram"],
+                 ["Disk", v.disk_prozent, "disk"]];
   let gezeigt = 0;
-  for (const [name, wert, einheit] of werte) {
+  for (const [name, wert, iconArt] of werte) {
     if (typeof wert !== "number") continue;
     gezeigt += 1;
+    const stufe = serverStufe(wert);
     const zelle = document.createElement("div");
     zelle.className = "server-zahl";
+    const oben = document.createElement("span");
+    oben.className = "server-oben";
+    const icon = document.createElement("span");
+    icon.className = "server-icon-wrap " + stufe;
+    icon.innerHTML = serverIconSvg(iconArt);
     const zahl = document.createElement("span");
-    zahl.className = "server-wert " + serverStufe(wert);
-    zahl.textContent = Math.round(wert) + (einheit || "%");
+    zahl.className = "server-wert " + stufe;
+    zahl.textContent = Math.round(wert) + "%";
     const label = document.createElement("small");
     label.textContent = name;
-    zelle.append(zahl, label);
+    oben.append(icon, zahl);
+    zelle.append(oben, label);
     box.append(zelle);
   }
   if (!gezeigt) {
@@ -1923,23 +1974,34 @@ function kachelWelt(d) {
   zeile2.innerHTML = "";
   const stuecke = [];
   if (typeof v.uptime_sekunden === "number") {
-    stuecke.push(["Uptime " + uptimeMenschlich(v.uptime_sekunden), ""]);
+    stuecke.push(["Uptime " + uptimeMenschlich(v.uptime_sekunden), "", "uhr"]);
   } else if (v.uptime_tage != null) {
-    stuecke.push(["Uptime " + v.uptime_tage + " Tage", ""]);
+    stuecke.push(["Uptime " + v.uptime_tage + " Tage", "", "uhr"]);
   }
   if (typeof v.temp_celsius === "number") {
-    stuecke.push([zahlDe(v.temp_celsius, 1) + "°", ""]);
+    stuecke.push([zahlDe(v.temp_celsius, 1) + "°", "", "thermo"]);
   }
   const dienste = v.dienste;
   if (dienste && typeof dienste.failed === "number") {
+    const down = dienste.failed > 0;
     stuecke.push([dienste.failed + (dienste.failed === 1 ? " Dienst down" : " Dienste down"),
-                  dienste.failed > 0 ? "dienst-down rot" : "dienst-down"]);
+                  down ? "dienst-down rot" : "dienst-down",
+                  down ? "warn" : ""]);
   }
-  stuecke.forEach(([text, klasse], i) => {
+  stuecke.forEach(([text, klasse, iconArt], i) => {
     if (i) zeile2.append(" · ");
     const span = document.createElement("span");
-    if (klasse) span.className = klasse;
-    span.textContent = text;
+    if (iconArt) {
+      span.className = "mit-icon" + (iconArt === "warn" ? " mit-warn" : "");
+      span.innerHTML = serverIconSvg(iconArt);
+      const t = document.createElement("span");
+      t.textContent = text;
+      if (klasse) t.className = klasse;
+      span.append(t);
+    } else {
+      if (klasse) span.className = klasse;
+      span.textContent = text;
+    }
     zeile2.append(span);
   });
   if (!stuecke.length) zeile2.textContent = "—";

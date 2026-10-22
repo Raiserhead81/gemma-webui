@@ -1271,6 +1271,39 @@ main:not(.ohne-fotos) .gespraech-kachel .kachel-label { letter-spacing: 0.14em; 
 .server-wert.server-gelb { background-image: linear-gradient(180deg, #fff3d6, var(--gelb)); }
 .server-wert.server-rot { background-image: linear-gradient(180deg, #ffdde3, var(--rot)); }
 .dienst-down.rot { color: var(--rot); font-weight: 700; }
+/* Mini-Icons neben den Zahlen: duenne Line-SVGs, deko, Zahl bleibt Hero.
+   Sitzt INLINE in einer Zeile (server-oben), damit nichts umbricht. */
+.server-zahl { display: flex; flex-direction: column; align-items: center; min-width: 0; }
+.server-oben { display: inline-flex; align-items: center; gap: 0.28rem; white-space: nowrap; }
+.server-icon {
+  width: 1.15rem; height: 1.15rem; flex: none; overflow: visible;
+  color: var(--text-dunkel);
+}
+.server-icon :is(path, rect, circle, line) {
+  fill: none; stroke: currentColor; stroke-width: 2;
+  stroke-linecap: round; stroke-linejoin: round;
+}
+.server-icon .si-led { fill: currentColor; stroke: none; }
+/* Stufen: gruen still, gelb sanftes Pulsieren, rot deutlicher Puls.
+   Rot zusaetzlich: CPU-Pins blinken, Disk-LED blinkt (Aktivitaet). */
+.server-icon-wrap { display: inline-flex; flex: none; }
+.server-icon-wrap.server-gelb { color: var(--gelb); animation: si-atmen 2.8s ease-in-out infinite; }
+.server-icon-wrap.server-rot { color: var(--rot); animation: si-atmen 1.15s ease-in-out infinite; }
+.server-icon-wrap.server-rot .si-pin { animation: si-blink 0.85s linear infinite; }
+.server-icon-wrap.server-gelb .si-led { animation: si-blink 1.7s linear infinite; }
+.server-icon-wrap.server-rot .si-led { animation: si-blink 0.7s linear infinite; }
+@keyframes si-atmen { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
+@keyframes si-blink { 0%, 49% { opacity: 1; } 50%, 100% { opacity: 0.12; } }
+/* Zeile 2: Uhren-/Thermo-Mini-Icons dezent, Warn-Icon rot + pulsierend.
+   Icon haengt am Stueck (inline-flex), der Text darf innerhalb des
+   Stuecks umbrechen (schmale Spalte, Baseline-Verhalten). */
+.mit-icon { display: inline-flex; align-items: center; gap: 0.3rem; }
+/* Zeile 2 etwas kompakt (1.12rem statt 1.25): mit Icons bleibt sie in
+   derselben Zeilenzahl wie vorher, nichts wird am Wand-Viewport
+   abgeschnitten (gemessen 1920x1080 + 1280x800, 22.10.). */
+#welt-zeile2 { font-size: 1.12rem; }
+.mit-icon .server-icon { width: 0.85em; height: 0.85em; }
+.mit-warn .server-icon { color: var(--rot); animation: si-atmen 1.2s ease-in-out infinite; }
 
 /* Overlay: Abschnitts-Koepfe (Dienste / Apps) + rote Down-Werte */
 .ov-abschnitt {
@@ -1598,7 +1631,14 @@ main:not(.ohne-fotos) .gespraech-kachel .kachel-label { letter-spacing: 0.14em; 
   align-self: center;
 }
 .flamme span { position: absolute; inset: 0; }
-/* orange Aussenschicht + teal-blauer Gaskern (echte Gasflamme) */
+/* orange Aussenschicht + teal-blauer Gaskern (echte Gasflamme).
+   --fstaerke (JS) skaliert Hoehe/Breite: heizt eine Zone stark hoch bzw.
+   steht das Soll hoch, waechst die Flamme. --fgeschw steuert das Tempo,
+   staerkere Flammen flackern etwas schneller. */
+.flamme-an {
+  height: calc(2.1rem * var(--fstaerke, 1));
+  width: calc(1.5rem * (0.82 + 0.18 * var(--fstaerke, 1)));
+}
 .flamme-an .flamme-schicht {
   position: absolute;
   left: 14%; right: 14%; top: 4%; bottom: 0;
@@ -1606,7 +1646,7 @@ main:not(.ohne-fotos) .gespraech-kachel .kachel-label { letter-spacing: 0.14em; 
   border-radius: 50% 50% 50% 50% / 68% 68% 32% 32%;
   box-shadow: 0 0 0.9rem rgba(255, 140, 46, 0.5);
   transform-origin: 50% 100%;
-  animation: flamme-flicker 0.9s ease-in-out infinite alternate;
+  animation: flamme-wabern var(--fgeschw, 0.95s) ease-in-out infinite;
 }
 .flamme-an .flamme-kern {
   position: absolute;
@@ -1615,13 +1655,33 @@ main:not(.ohne-fotos) .gespraech-kachel .kachel-label { letter-spacing: 0.14em; 
               #a8f4ff 0%, #3ed4ee 55%, rgba(62, 212, 238, 0) 100%);
   border-radius: 50%;
   transform-origin: 50% 100%;
-  animation: flamme-flicker 0.68s ease-in-out -0.35s infinite alternate-reverse;
+  animation: flamme-kern-puls calc(var(--fgeschw, 0.95s) * 0.62) ease-in-out infinite;
 }
-@keyframes flamme-flicker {
-  0%   { transform: scaleY(1) scaleX(1); }
-  35%  { transform: scaleY(1.14) scaleX(0.93); }
-  70%  { transform: scaleY(0.9) scaleX(1.06); }
-  100% { transform: scaleY(1.08) scaleX(0.97); }
+/* Wabernde Kontur: Radius-Morph + leichte Rotation/Skew statt nur scaleY */
+@keyframes flamme-wabern {
+  0%, 100% { transform: scaleY(1) scaleX(1) rotate(0deg);
+             border-radius: 50% 50% 50% 50% / 68% 68% 32% 32%; }
+  28%  { transform: scaleY(1.12) scaleX(0.93) rotate(-2.4deg);
+         border-radius: 58% 42% 46% 54% / 74% 62% 26% 34%; }
+  56%  { transform: scaleY(0.9) scaleX(1.06) rotate(1.8deg);
+         border-radius: 44% 56% 56% 44% / 64% 70% 30% 36%; }
+  80%  { transform: scaleY(1.07) scaleX(0.97) rotate(-1.1deg);
+         border-radius: 54% 46% 48% 52% / 72% 60% 28% 40%; }
+}
+/* Kern lebt staerker als die Aussenschicht: groesserer Puls + Opazitaet */
+@keyframes flamme-kern-puls {
+  0%, 100% { transform: scale(1) translateY(0); opacity: 0.85; }
+  38% { transform: scale(1.22, 1.3) translateY(-4%); opacity: 1; }
+  70% { transform: scale(0.9, 0.82) translateY(2%); opacity: 0.68; }
+}
+/* Ganze Zeile atmet: dezenter Glow-Puls nur am Flammen-Container,
+   nicht die ganze Kachel. */
+@keyframes flamme-zeile-atmen {
+  0%, 100% { filter: drop-shadow(0 0 0.12rem rgba(255, 140, 46, 0.22)); }
+  50% { filter: drop-shadow(0 0 0.42rem rgba(255, 140, 46, 0.55)); }
+}
+.heizung-zeile.heizt .flamme {
+  animation: flamme-zeile-atmen calc(var(--fgeschw, 0.95s) * 2.6) ease-in-out infinite;
 }
 /* aus: kleine graue Flammen-Andeutung */
 .flamme-aus .flamme-schicht {
@@ -1686,7 +1746,14 @@ body.tab-weg .flamme-an .flamme-schicht, body.tab-weg .flamme-an .flamme-kern,
 body.tab-weg .markt-stuermisch .markt-wort,
 body.tab-weg .markt-leichter_wind .markt-wort,
 body.tab-weg .markt-stuermisch .ms-marker,
-body.tab-weg .wtag-wind-alarm .wtag-wind-label {
+body.tab-weg .wtag-wind-alarm .wtag-wind-label,
+body.tab-weg .server-icon-wrap.server-gelb,
+body.tab-weg .server-icon-wrap.server-rot,
+body.tab-weg .server-icon-wrap.server-rot .si-pin,
+body.tab-weg .server-icon-wrap.server-gelb .si-led,
+body.tab-weg .server-icon-wrap.server-rot .si-led,
+body.tab-weg .mit-warn .server-icon,
+body.tab-weg .heizung-zeile.heizt .flamme {
   animation-play-state: paused !important;
 }
 @media (prefers-reduced-motion: reduce) {
@@ -1695,7 +1762,14 @@ body.tab-weg .wtag-wind-alarm .wtag-wind-label {
   .flamme-an .flamme-schicht, .flamme-an .flamme-kern,
   .markt-stuermisch .markt-wort, .markt-leichter_wind .markt-wort,
   .markt-stuermisch .ms-marker,
-  .wtag-wind-alarm .wtag-wind-label {
+  .wtag-wind-alarm .wtag-wind-label,
+  .server-icon-wrap.server-gelb,
+  .server-icon-wrap.server-rot,
+  .server-icon-wrap.server-rot .si-pin,
+  .server-icon-wrap.server-gelb .si-led,
+  .server-icon-wrap.server-rot .si-led,
+  .mit-warn .server-icon,
+  .heizung-zeile.heizt .flamme {
     animation: none !important;
   }
 }
