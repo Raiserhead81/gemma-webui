@@ -2298,7 +2298,7 @@ body.tab-weg .heizung-zeile.hz-laeuft .hz-soll { animation-play-state: paused !i
 .system-kachel .system-kopf { display: flex; align-items: center; gap: 0.4rem; margin-bottom: 0.65rem; font-size: 0.82rem; font-weight: 700; letter-spacing: 0.09em; text-transform: uppercase; color: var(--text-dunkel); white-space: nowrap; }
 .system-kachel .server-wert { font-size: 1.3rem; }
 .system-kachel .server-zahl small { font-size: 0.76rem; }
-.system-kachel .server-zahlen { gap: 0.3rem; }
+.system-kachel .server-zahlen { gap: 1.6rem; justify-content: flex-start; }
 .system-kachel .system-fuss { margin-top: 0.5rem; font-size: 0.76rem; }
 .system-kachel .system-stand { font-size: 0.66rem; opacity: 0.6; margin-top: 0.15rem; }
 .gemma-punkt { width: 9px; height: 9px; border-radius: 50%; background: var(--text-dunkel); display: inline-block; flex: none; }
