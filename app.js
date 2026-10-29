@@ -2478,6 +2478,15 @@ function uptimeMenschlich(sek) {
   return stunden + " Std " + Math.floor((sek % 3600) / 60) + " Min";
 }
 
+function serverBalken(wert, stufe) {
+  const b = document.createElement("div");
+  b.className = "server-balken";
+  const i = document.createElement("i");
+  i.className = stufe === "server-rot" ? "b-rot" : stufe === "server-gelb" ? "b-gelb" : "b-gruen";
+  i.style.width = Math.max(2, Math.min(100, wert)) + "%";
+  b.append(i);
+  return b;
+}
 function kachelWelt(d) {
   /* SERVER-Kachel: grosse Zahlen CPU/RAM/Disk mit kleinen Icons daneben,
      Zeile 2 = Uptime + Temp + Dienste-down (mit Mini-Icons). Die Icons
@@ -2510,7 +2519,7 @@ function kachelWelt(d) {
     const label = document.createElement("small");
     label.textContent = name;
     oben.append(icon, zahl);
-    zelle.append(oben, label);
+    zelle.append(oben, serverBalken(wert, stufe), label);
     box.append(zelle);
   }
   /* Rack-Icon am Kachelkopf (vor dem Label "gemivo"): dezent in der
@@ -2691,6 +2700,7 @@ function wettStatusHolen() {
 function kachelWett(d) {
   state.kachelDaten["k-wett"] = d || null;
   const bank = $("wett-bank");
+  if (!bank) return;  /* AIBet-Kachel entfernt */
   const diff = $("wett-diff");
   const offen = $("wett-offen");
   const bilanz = $("wett-bilanz");
@@ -3704,3 +3714,41 @@ window.gemmaIntern = {
     kacheln: Object.keys(state.kachelDaten)
   })
 };
+
+
+/* === Mac Mini + Gemma in der System-Kachel ========================
+   Fuellt #mini-infos (Mac-Mini CPU/RAM/Disk, exakt gemivo-Stil) und die
+   Gemma-Spalte aus GET /api. Reuse serverStufe/serverIconSvg/uptimeMenschlich. */
+(function () {
+  "use strict";
+  const M = (id) => document.getElementById(id);
+  function zelle(name, wert, art) {
+    const stufe = serverStufe(wert);
+    const z = document.createElement("div"); z.className = "server-zahl";
+    const oben = document.createElement("span"); oben.className = "server-oben";
+    const ic = document.createElement("span"); ic.className = "server-icon-wrap " + stufe; ic.innerHTML = serverIconSvg(art);
+    const za = document.createElement("span"); za.className = "server-wert " + stufe; za.textContent = Math.round(wert) + "%";
+    const la = document.createElement("small"); la.textContent = name;
+    oben.append(ic, za); z.append(oben, serverBalken(wert, stufe), la);
+    return { z, stufe };
+  }
+  function lade() {
+    const box = M("mini-infos"); if (!box) return;
+    fetch("/api", { cache: "no-store" })
+      .then((r) => { if (!r.ok) throw new Error("HTTP " + r.status); return r.json(); })
+      .then((d) => {
+        box.innerHTML = "";
+        const werte = [["CPU", d.cpu_prozent, "cpu"], ["RAM", d.ram && d.ram.prozent, "ram"], ["Disk", d.platte && d.platte.prozent, "disk"]];
+        let worst = 0;
+        for (const [n, w, a] of werte) { if (typeof w !== "number") continue; const r = zelle(n, w, a); worst = Math.max(worst, r.stufe === "server-rot" ? 2 : r.stufe === "server-gelb" ? 1 : 0); box.append(r.z); }
+        if (!box.childNodes.length) box.innerHTML = "<div class=\"kachel-zusatz\">&mdash;</div>";
+        const li = M("mini-label-stufe"); if (li) { li.className = "server-icon-wrap" + (worst ? " " + ["server-gruen","server-gelb","server-rot"][worst] : ""); li.innerHTML = serverIconSvg("server"); }
+        const dr = d.druck || {};
+        const drText = dr.text ? ("Speicher " + dr.text + (dr.swap_mb && dr.swap_mb > 512 ? " \u00b7 Swap " + (dr.swap_mb / 1024).toFixed(1).replace(".", ",") + " GB" : "")) : "";
+        const dz = M("mini-druck"); if (dz) dz.textContent = drText;
+        const z2 = M("mini-zeile2"); if (z2) z2.textContent = (typeof d.uptime_s === "number") ? "Uptime " + uptimeMenschlich(d.uptime_s) : "\u2014";
+      })
+      .catch(() => { const b = M("mini-infos"); if (b) b.innerHTML = "<div class=\"kachel-zusatz\">keine Daten</div>"; });
+  }
+  lade(); setInterval(lade, 10000);
+})();

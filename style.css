@@ -290,9 +290,8 @@ main {
 #k-termine { grid-column: 13 / 17; grid-row: 1; }
 #k-radar   { grid-column: 1 / -1;  grid-row: 2; }
 #k-wetter  { grid-column: 1 / 7;   grid-row: 3; }
-#k-welt    { grid-column: 7 / 10;  grid-row: 3; }
-#k-markt   { grid-column: 10 / 14; grid-row: 3; }
-#k-wett    { grid-column: 14 / 17; grid-row: 3; }
+#k-welt    { grid-column: 7 / 14;  grid-row: 3; }
+#k-markt   { grid-column: 14 / 17; grid-row: 3; }
 
 .kachel-wert {
   font-size: 2.5rem;
@@ -1116,7 +1115,7 @@ main:not(.ohne-fotos) .gespraech-kachel .kachel-label { letter-spacing: 0.14em; 
   main.ohne-gespraech { grid-template-rows: 26% 1fr; }
   main.ohne-gespraech.ohne-fotos { grid-template-rows: 1fr; }
   .raster { grid-template-columns: 1fr 1fr; grid-template-rows: auto; }
-  #k-musik, #k-vital, #k-heizung, #k-termine, #k-wetter, #k-radar, #k-welt, #k-markt, #k-wett {
+  #k-musik, #k-vital, #k-heizung, #k-termine, #k-wetter, #k-radar, #k-welt, #k-markt {
     grid-column: auto;
     grid-row: auto;
   }
@@ -2289,3 +2288,26 @@ body.tab-weg .heizung-zeile.hz-laeuft .hz-soll { animation-play-state: paused !i
   .heizung-zeile.hz-fehler { animation: none !important; background: rgba(255, 92, 116, 0.22); }
   .hz-btn { transition: none; }
 }
+
+
+/* === System-Kachel: gemivo + Mac Mini + Gemma nebeneinander === */
+.system-kachel { padding-left: 1.3rem; padding-right: 1.3rem; display: flex; flex-direction: column; }
+.system-kachel .system-spalten { display: flex; gap: 1.4rem; align-items: flex-start; flex: 1; min-height: 0; }
+.system-kachel .system-spalte { flex: 1 1 0; min-width: 0; display: flex; flex-direction: column; }
+.system-kachel .system-spalte-gemma { flex: 1.2 1 0; }
+.system-kachel .system-kopf { display: flex; align-items: center; gap: 0.4rem; margin-bottom: 0.65rem; font-size: 0.82rem; font-weight: 700; letter-spacing: 0.09em; text-transform: uppercase; color: var(--text-dunkel); white-space: nowrap; }
+.system-kachel .server-wert { font-size: 1.3rem; }
+.system-kachel .server-zahl small { font-size: 0.76rem; }
+.system-kachel .server-zahlen { gap: 0.3rem; }
+.system-kachel .system-fuss { margin-top: 0.5rem; font-size: 0.76rem; }
+.system-kachel .system-stand { font-size: 0.66rem; opacity: 0.6; margin-top: 0.15rem; }
+.gemma-punkt { width: 9px; height: 9px; border-radius: 50%; background: var(--text-dunkel); display: inline-block; flex: none; }
+.gemma-aktion { font-size: 1.1rem; font-weight: 800; color: var(--text); line-height: 1.25; }
+
+/* System-Kachel: duenne Balken unter CPU/RAM/Disk (29.10. Epic-Kachel) */
+.server-balken { width: 100%; max-width: 5.2rem; height: 0.4rem; margin-top: 0.25rem; border-radius: 0.25rem; background: rgba(255, 255, 255, 0.13); overflow: hidden; }
+.server-balken i { display: block; height: 100%; border-radius: 0.25rem; }
+.server-balken i.b-gruen { background: var(--gruen); }
+.server-balken i.b-gelb { background: var(--gelb); }
+.server-balken i.b-rot { background: var(--rot); }
+.system-kachel .system-spalte { flex: 1 1 0; min-width: 0; }

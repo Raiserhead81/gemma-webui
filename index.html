@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="theme-color" content="#0a0e14">
 <title>Gemma</title>
-<link rel="stylesheet" href="style.css">
+<link rel="stylesheet" href="style.css?v=sys4">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Ccircle cx='32' cy='32' r='30' fill='%237c6cf0'/%3E%3Ccircle cx='32' cy='32' r='18' fill='%23b9a8ff'/%3E%3C/svg%3E">
 </head>
 <body>
@@ -142,14 +142,23 @@
       <div id="wetter-tage" class="wetter-tage"><div class="kachel-zusatz">—</div></div>
     </div>
 
-    <div class="kachel" id="k-welt">
-      <!-- Rack-Icon leert (JS fuellt es in kachelWelt); bewusst NACH dem
-           Text "Server", das Overlay liest label.firstChild.textContent.
-           Kein Leerzeichen vorm Zusatz: der schmalen Spalte zuliebe. -->
-      <div class="kachel-label">Server <span class="server-icon-wrap" id="server-label-stufe" aria-hidden="true"></span><span class="kachel-label-zusatz">gemivo</span></div>
-      <div id="server-zahlen" class="server-zahlen"><div class="kachel-zusatz">—</div></div>
-      <div id="welt-zeile2" class="kachel-zusatz">—</div>
-      <div id="welt-alter" class="kachel-zusatz"></div>
+    <div class="kachel system-kachel" id="k-welt">
+      <div class="kachel-label">System <span class="kachel-label-zusatz">gemivo &middot; Mac Mini</span></div>
+      <div class="system-spalten">
+        <div class="system-spalte">
+          <div class="system-kopf">gemivo <span class="server-icon-wrap" id="server-label-stufe" aria-hidden="true"></span></div>
+          <div id="server-zahlen" class="server-zahlen"><div class="kachel-zusatz">&mdash;</div></div>
+          <div id="welt-zeile2" class="kachel-zusatz system-fuss">&mdash;</div>
+          <div id="welt-alter" class="kachel-zusatz system-stand"></div>
+        </div>
+        <div class="system-spalte">
+          <div class="system-kopf">Mac Mini <span class="server-icon-wrap" id="mini-label-stufe" aria-hidden="true"></span></div>
+          <div id="mini-infos" class="server-zahlen"><div class="kachel-zusatz">&mdash;</div></div>
+          <div id="mini-zeile2" class="kachel-zusatz system-fuss">&mdash;</div>
+          <div id="mini-druck" class="kachel-zusatz system-stand"></div>
+        </div>
+
+      </div>
     </div>
 
     <!-- Markt-Ampel: VIX als Wind-Metapher (Kay: "nur wie der Markt ist"),
@@ -177,17 +186,6 @@
     <!-- AIBet: Wettbot Paper (virtuell, 100 EUR Bank). Daten:
          /wettbot-status/status.json (LAN-only, gleiche Herkunft, kein Token).
          Gross & vom Sofa lesbar: Guthaben, Kennzahlen, naechste 5 Wetten. -->
-    <div class="kachel wett-kachel" id="k-wett">
-      <div class="kachel-label">AIBet <span class="kachel-label-zusatz">Wettbot Paper · virtuell</span></div>
-      <div class="wett-koerper">
-        <div id="wett-bank" class="wett-bank">—</div>
-        <div id="wett-diff" class="wett-diff">—</div>
-        <div id="wett-offen" class="wett-zeile-gross">—</div>
-        <div id="wett-bilanz" class="wett-zeile-gross">—</div>
-        <div id="wett-kennzahlen" class="wett-zeile-gross">—</div>
-        <div id="wett-alter" class="kachel-zusatz"></div>
-      </div>
-    </div>
   </section>
 </main>
 
@@ -217,6 +215,6 @@
 </div>
 
 <script src="config.js"></script>
-<script src="app.js"></script>
+<script src="app.js?v=sys4"></script>
 </body>
 </html>
