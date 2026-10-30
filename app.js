@@ -3744,16 +3744,15 @@ window.gemmaIntern = {
         if (!box.childNodes.length) box.innerHTML = "<div class=\"kachel-zusatz\">&mdash;</div>";
         const li = M("mini-label-stufe"); if (li) { li.className = "server-icon-wrap" + (worst ? " " + ["server-gruen","server-gelb","server-rot"][worst] : ""); li.innerHTML = serverIconSvg("server"); }
         const dr = d.druck || {};
-        const drText = dr.text ? ("Speicher " + dr.text + (dr.swap_mb && dr.swap_mb > 512 ? " \u00b7 Swap " + (dr.swap_mb / 1024).toFixed(1).replace(".", ",") + " GB" : "")) : "";
-        const dz = M("mini-druck"); if (dz) dz.textContent = drText;
-        const z2 = M("mini-zeile2"); if (z2) z2.textContent = (typeof d.uptime_s === "number") ? "Uptime " + uptimeMenschlich(d.uptime_s) : "\u2014";
         const th = d.thermal || {};
+        const drText = dr.text ? ("Speicher " + dr.text + (dr.swap_mb && dr.swap_mb > 512 ? " \u00b7 Swap " + (dr.swap_mb / 1024).toFixed(1).replace(".", ",") + " GB" : "")) : "";
         const tText = (th.temperatures && typeof th.temperatures.main === "number")
           ? ("\ud83c\udf21 " + Math.round(th.temperatures.main) + " \u00b0C"
              + (typeof th.temperatures.gpu === "number" ? " \u00b7 GPU " + Math.round(th.temperatures.gpu) : "")
              + (typeof th.fan_rpm === "number" ? " \u00b7 " + Math.round(th.fan_rpm) + " RPM" : ""))
           : "";
-        const tz = M("mini-temp"); if (tz) tz.textContent = tText;
+        const dz = M("mini-druck"); if (dz) dz.textContent = [drText, tText].filter(Boolean).join(" \u00b7 ");
+        const z2 = M("mini-zeile2"); if (z2) z2.textContent = (typeof d.uptime_s === "number") ? "Uptime " + uptimeMenschlich(d.uptime_s) : "\u2014";
       })
       .catch(() => { const b = M("mini-infos"); if (b) b.innerHTML = "<div class=\"kachel-zusatz\">keine Daten</div>"; });
   }
