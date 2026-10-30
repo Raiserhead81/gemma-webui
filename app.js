@@ -3759,3 +3759,29 @@ window.gemmaIntern = {
   }
   lade(); setInterval(lade, 10000);
 })();
+
+/* ---------------- Gemma Academy (Reihe 4) ---------------- */
+(function () {
+  "use strict";
+  const M = (id) => document.getElementById(id);
+  function acadLaden() {
+    fetch("https://gemmini.gemivo.de/academy/latest.json", { cache: "no-store" })
+      .then((r) => { if (!r.ok) throw new Error("HTTP " + r.status); return r.json(); })
+      .then((d) => {
+        const st = d.stats || {}, le = d.lesson || {}, pr = d.problems || {};
+        const rate = M("acad-rate"), zahlen = M("acad-zahlen"),
+              bar = M("acad-bar"), letzte = M("acad-letzte");
+        if (!rate) return;
+        rate.textContent = (st.pass_rate != null ? st.pass_rate : "—") + "%";
+        const errs = (pr.announce_no_call || 0) + (pr.truncations || 0) + (pr.errors || 0);
+        zahlen.textContent = (st.done || 0) + " / " + (st.total || 0) + " gelernt · "
+          + (st.passed || 0) + " bestanden" + (errs ? " · " + errs + " Fehler" : "");
+        bar.style.width = Math.min(100, (st.percent || 0)) + "%";
+        letzte.textContent = (le.id || "—") + " · "
+          + (le.passed ? "PASS" : "FAIL") + (le.score != null ? " " + le.score + "%" : "");
+      })
+      .catch(() => { const r = M("acad-rate"); if (r) r.textContent = "—"; });
+  }
+  acadLaden();
+  setInterval(acadLaden, 30000);
+})();

@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="theme-color" content="#0a0e14">
 <title>Gemma</title>
-<link rel="stylesheet" href="style.css?v=sys6">
+<link rel="stylesheet" href="style.css?v=sys7">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Ccircle cx='32' cy='32' r='30' fill='%237c6cf0'/%3E%3Ccircle cx='32' cy='32' r='18' fill='%23b9a8ff'/%3E%3C/svg%3E">
 </head>
 <body>
@@ -184,6 +184,19 @@
       </div>
     </div>
 
+    <!-- Gemma Academy (Kays Trainings-Cockpit): Pass-Rate, Fortschritt,
+         letzte Lektion. Quelle: gemmini /academy/latest.json (ohne Auth). -->
+    <div class="kachel academy-kachel" id="k-academy">
+      <div class="kachel-label">Gemma Academy <span class="kachel-label-zusatz">10.000 Lektionen · 24/7</span></div>
+      <div class="academy-koerper">
+        <div class="academy-haupt">
+          <span class="academy-rate" id="acad-rate">—</span>
+          <span class="academy-zahlen" id="acad-zahlen">—</span>
+        </div>
+        <div class="academy-balken"><div id="acad-bar"></div></div>
+        <div class="academy-letzte" id="acad-letzte">—</div>
+      </div>
+    </div>
     <!-- AIBet: Wettbot Paper (virtuell, 100 EUR Bank). Daten:
          /wettbot-status/status.json (LAN-only, gleiche Herkunft, kein Token).
          Gross & vom Sofa lesbar: Guthaben, Kennzahlen, naechste 5 Wetten. -->
@@ -216,6 +229,6 @@
 </div>
 
 <script src="config.js"></script>
-<script src="app.js?v=sys6"></script>
+<script src="app.js?v=sys7"></script>
 </body>
 </html>
