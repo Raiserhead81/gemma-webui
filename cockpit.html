@@ -163,6 +163,13 @@
     <div class="balken-rahmen"><div class="balken" id="thermal-balken"></div></div>
   </div>
 
+  <div class="karte">
+    <h2>Gemma Academy</h2>
+    <div class="gross"><span id="acad-pass">–</span><small> %</small></div>
+    <div class="unterzeile"><span id="acad-done">–</span> gelernt · <span id="acad-strike">–</span> bestanden</div>
+    <div class="unterzeile" id="acad-letzte">–</div>
+  </div>
+
   <div class="karte karte-gemma">
     <h2>Gemma <span id="gemma-punkt" style="display:inline-block;width:10px;height:10px;border-radius:50%;background:#8b90a5;vertical-align:middle;"></span></h2>
     <div id="gemma-aktion" style="font-size:1.15rem;font-weight:600;margin-bottom:6px;">–</div>
@@ -189,16 +196,7 @@
 </div>
 
 <section class="guard-bereich">
-  <div class="karte">
-    <h2>Guard · Prozesse (Top nach RAM) <span class="kleiner-grau" id="guard-hinweis"></span></h2>
-    <div class="gtabelle-scroll">
-      <table class="gtabelle">
-        <thead><tr><th>PID</th><th>RAM</th><th>CPU</th><th>Seit</th><th>Klasse</th><th>Befehl</th><th></th></tr></thead>
-        <tbody id="guard-procs"><tr><td colspan="7" class="kleiner-grau">lade…</td></tr></tbody>
-      </table>
-    </div>
-  </div>
-  <div class="spalte">
+    <div class="spalte">
     <div class="karte">
       <h2>Pausierte Jobs</h2>
       <div id="guard-paused" class="kleiner-grau">keine</div>
@@ -342,7 +340,7 @@ function guardOhneToken() {
   $("guard-main").style.color = "";
   $("guard-detail").textContent = "Einmal gemmini.gemivo.de/?t=… (Guard-Token) aufrufen, dann ist hier alles live.";
   $("guard-hinweis").textContent = "· ohne Token keine Live-Daten";
-  $("guard-procs").innerHTML = '<tr><td colspan="7" class="kleiner-grau">Token fehlt</td></tr>';
+  const _gp=$("guard-procs"); if(!_gp) return; _gp.innerHTML = '<tr><td colspan="7" class="kleiner-grau">Token fehlt</td></tr>';
   $("guard-paused").textContent = "–";
   $("guard-ollama").textContent = "–";
   $("guard-log").textContent = "–";
@@ -367,7 +365,7 @@ async function ladeGuard() {
 
     /* Prozesstabelle */
     const pausiertPids = (s.paused || []).map(x => x.pid);
-    $("guard-procs").innerHTML = (s.procs || []).map(pr => {
+    const _gp2=$("guard-procs"); if(!_gp2) return; _gp2.innerHTML = (s.procs || []).map(pr => {
       const btns = pr.klasse !== "protected"
         ? "<button class='gbtn' onclick=\"guardAct(" + pr.pid + ",'pause')\">Pause</button>" +
           "<button class='gbtn stop' onclick=\"guardAct(" + pr.pid + ",'term')\">Stop</button>"
@@ -405,6 +403,19 @@ async function ladeGuard() {
 }
 ladeGuard();
 setInterval(ladeGuard, 5000);
+/* Gemma Academy (Kays Trainings-Cockpit) */
+function acadLaden(){
+  fetch("https://gemmini.gemivo.de/academy/latest.json",{cache:"no-store"}).then(r=>r.json()).then(d=>{
+    const st=d.stats||{}, le=d.lesson||{};
+    const p1=document.getElementById("acad-pass"), p2=document.getElementById("acad-done"),
+          p3=document.getElementById("acad-strike"), p4=document.getElementById("acad-letzte");
+    if(p1) p1.textContent = st.pass_rate!=null?st.pass_rate:"–";
+    if(p2) p2.textContent = (st.done||0)+" / "+(st.total||0);
+    if(p3) p3.textContent = st.passed||0;
+    if(p4) p4.textContent = (le.id||"—")+" · "+(le.passed?"PASS":"FAIL")+" "+(le.score!=null?le.score+"%":"");
+  }).catch(()=>{ const e=document.getElementById("acad-letzte"); if(e) e.textContent="Academy nicht erreichbar"; });
+}
+acadLaden(); setInterval(acadLaden, 30000);
 </script>
 </body>
 </html>
