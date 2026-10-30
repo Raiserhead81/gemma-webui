@@ -671,7 +671,7 @@ function selbstReload(grund) {
 
 async function codeStandHolen() {
   try {
-    const r = await fetch(location.origin + "/index.html?selfrefresh=" + Date.now(),
+    const r = await fetch("index.html?selfrefresh=" + Date.now(),
       { method: "HEAD", cache: "no-store" });
     if (!r.ok) return null;
     return r.headers.get("etag") || r.headers.get("last-modified") || "";
@@ -2690,7 +2690,7 @@ function kachelMarkt(m) {
    kein Token noetig). Alle 5 Min neu; Quelle weg -> letzter Stand. */
 
 function wettStatusHolen() {
-  fetch(location.origin + "/wettbot-status/status.json",
+  fetch(location.origin + "/wettbot-status/status.json" + (CFG.token ? "?token=" + encodeURIComponent(CFG.token) : ""),
         { cache: "no-store" })
     .then((r) => (r.ok ? r.json() : null))
     .then((d) => kachelWett(d))
