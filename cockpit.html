@@ -1,0 +1,410 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Mac Mini Cockpit</title>
+<style>
+  :root {
+    --hg: #0f1117;
+    --karte: #1a1d27;
+    --rand: #2a2e3d;
+    --text: #e6e8f0;
+    --grau: #8b90a5;
+    --akzent: #4f9cf9;
+    --gruen: #3ddc84;
+    --gelb: #f5c542;
+    --rot: #ff5c6c;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: var(--hg);
+    color: var(--text);
+    font-family: -apple-system, "SF Pro Text", "Helvetica Neue", sans-serif;
+    min-height: 100vh;
+    padding: 28px;
+  }
+  header {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 24px;
+  }
+  h1 { font-size: 1.5rem; font-weight: 600; }
+  h1 .punkt {
+    display: inline-block; width: 10px; height: 10px; border-radius: 50%;
+    background: var(--gruen); margin-right: 10px;
+  }
+  .kopf-rechts { color: var(--grau); font-size: 0.85rem; }
+  .raster {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+    gap: 18px;
+    max-width: 1100px;
+  }
+  .karte {
+    background: var(--karte);
+    border: 1px solid var(--rand);
+    border-radius: 14px;
+    padding: 20px;
+  }
+  .karte h2 {
+    font-size: 0.78rem; font-weight: 600; text-transform: uppercase;
+    letter-spacing: 0.08em; color: var(--grau); margin-bottom: 12px;
+  }
+  .gross { font-size: 2.1rem; font-weight: 700; font-variant-numeric: tabular-nums; }
+  .gross klein { font-size: 1.1rem; color: var(--grau); font-weight: 400; }
+  .unterzeile { color: var(--grau); font-size: 0.85rem; margin-top: 6px; }
+  .balken-rahmen {
+    height: 8px; background: #10131c; border-radius: 4px;
+    margin-top: 14px; overflow: hidden; border: 1px solid var(--rand);
+  }
+  .balken {
+    height: 100%; width: 0%;
+    background: var(--akzent);
+    border-radius: 4px;
+    transition: width 0.6s ease, background 0.6s ease;
+  }
+  .gruen { background: var(--gruen); }
+  .gelb  { background: var(--gelb); }
+  .rot   { background: var(--rot); }
+  .fuss {
+    margin-top: 26px; color: var(--grau); font-size: 0.78rem;
+    max-width: 1100px;
+  }
+  .fuss a { color: var(--akzent); text-decoration: none; }
+  .fehler { color: var(--rot); }
+
+  /* Guard-Vollbereich */
+  .guard-bereich {
+    display: grid; grid-template-columns: 1.55fr 1fr;
+    gap: 18px; max-width: 1100px; margin-top: 18px;
+  }
+  @media (max-width: 860px) { .guard-bereich { grid-template-columns: 1fr; } }
+  .guard-bereich .spalte { display: grid; gap: 18px; align-content: start; }
+  .modus-schalter { display: flex; gap: 6px; margin-top: 10px; }
+  .modus-schalter button {
+    flex: 1; padding: 5px 0; font-size: 12px; cursor: pointer;
+    border: 1px solid var(--rand); border-radius: 7px;
+    background: #10131c; color: var(--text);
+  }
+  .modus-schalter button.on {
+    background: var(--akzent); border-color: var(--akzent); color: #fff; font-weight: 600;
+  }
+  .gtabelle { width: 100%; border-collapse: collapse; font-size: 12.5px; font-variant-numeric: tabular-nums; }
+  .gtabelle th {
+    color: var(--grau); text-align: left; font-weight: 500;
+    padding: 4px 6px; border-bottom: 1px solid var(--rand);
+  }
+  .gtabelle td { padding: 4px 6px; border-bottom: 1px solid #21262d; vertical-align: top; }
+  .gtabelle-scroll { max-height: 300px; overflow-y: auto; }
+  .gtabelle tr.protected td { color: var(--grau); }
+  .gtabelle tr.paused td { background: #2d1e1e; }
+  .tag { font-size: 10px; padding: 1px 6px; border-radius: 8px; border: 1px solid var(--rand); }
+  .tag.heavy { color: var(--gelb); border-color: var(--gelb); }
+  .tag.protected { color: var(--gruen); border-color: var(--gruen); }
+  .tag.normal { color: var(--grau); }
+  .cmd { max-width: 340px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--grau); }
+  .gbtn {
+    padding: 2px 8px; font-size: 11px; border-radius: 6px;
+    border: 1px solid var(--rand); background: #10131c; color: var(--text);
+    cursor: pointer; margin-right: 3px;
+  }
+  .gbtn:hover { border-color: var(--akzent); }
+  .gbtn.stop { color: var(--rot); }
+  .glog {
+    font: 11.5px/1.6 ui-monospace, Menlo, monospace;
+    max-height: 170px; overflow-y: auto; color: var(--grau);
+  }
+  .glog .jetzt { color: var(--akzent); }
+  .kleiner-grau { color: var(--grau); font-size: 12px; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1><span class="punkt" id="status-punkt"></span>Mac&nbsp;Mini Cockpit</h1>
+  <div class="kopf-rechts">
+    <span id="hostname">–</span> · <span id="system">–</span> · Stand <span id="zeit">–</span>
+  </div>
+</header>
+
+<div class="raster">
+  <div class="karte">
+    <h2>CPU</h2>
+    <div class="gross"><span id="cpu">–</span><small> %</small></div>
+    <div class="unterzeile"><span id="kerne">–</span> Kerne · Last <span id="last">–</span></div>
+    <div class="balken-rahmen"><div class="balken" id="cpu-balken"></div></div>
+  </div>
+
+  <div class="karte">
+    <h2>Arbeitsspeicher</h2>
+    <div class="gross"><span id="ram-proz">–</span><small> %</small></div>
+    <div class="unterzeile"><span id="ram-werte">–</span> GB belegt</div>
+    <div class="balken-rahmen"><div class="balken" id="ram-balken"></div></div>
+  </div>
+
+  <div class="karte">
+    <h2>Festplatte</h2>
+    <div class="gross"><span id="disk-proz">–</span><small> %</small></div>
+    <div class="unterzeile"><span id="disk-werte">–</span> GB frei von <span id="disk-gesamt">–</span> GB</div>
+    <div class="balken-rahmen"><div class="balken" id="disk-balken"></div></div>
+  </div>
+
+  <div class="karte">
+    <h2>Thermal</h2>
+    <div class="gross"><span id="temperature-main">–</span><small> °C</small></div>
+    <div class="unterzeile"><span id="gpu-temp">–</span> °C GPU · <span id="fan-rpm">–</span> RPM · Limit <span id="cpu-speed-limit">–</span> %</div>
+    <div class="balken-rahmen"><div class="balken" id="thermal-balken"></div></div>
+  </div>
+
+  <div class="karte karte-gemma">
+    <h2>Gemma <span id="gemma-punkt" style="display:inline-block;width:10px;height:10px;border-radius:50%;background:#8b90a5;vertical-align:middle;"></span></h2>
+    <div id="gemma-aktion" style="font-size:1.15rem;font-weight:600;margin-bottom:6px;">–</div>
+    <div class="unterzeile" id="gemma-detail">–</div>
+    <div class="unterzeile" id="gemma-meta" style="opacity:.7;">–</div>
+  </div>
+
+  <div class="karte">
+    <h2>Uptime</h2>
+    <div class="gross" id="uptime">–</div>
+    <div class="unterzeile">seit letztem Neustart</div>
+  </div>
+
+  <div class="karte karte-guard">
+    <h2>mini-guard <span id="guard-punkt" style="display:inline-block;width:10px;height:10px;border-radius:50%;background:#8b90a5;vertical-align:middle;"></span></h2>
+    <div id="guard-main" style="font-size:1.15rem;font-weight:600;margin-bottom:6px;">–</div>
+    <div class="unterzeile" id="guard-detail">–</div>
+    <div class="modus-schalter" id="guard-modus">
+      <button data-mode="active">Regelt</button>
+      <button data-mode="observe">Beobachtet</button>
+      <button data-mode="off">Aus</button>
+    </div>
+  </div>
+</div>
+
+<section class="guard-bereich">
+  <div class="karte">
+    <h2>Guard · Prozesse (Top nach RAM) <span class="kleiner-grau" id="guard-hinweis"></span></h2>
+    <div class="gtabelle-scroll">
+      <table class="gtabelle">
+        <thead><tr><th>PID</th><th>RAM</th><th>CPU</th><th>Seit</th><th>Klasse</th><th>Befehl</th><th></th></tr></thead>
+        <tbody id="guard-procs"><tr><td colspan="7" class="kleiner-grau">lade…</td></tr></tbody>
+      </table>
+    </div>
+  </div>
+  <div class="spalte">
+    <div class="karte">
+      <h2>Pausierte Jobs</h2>
+      <div id="guard-paused" class="kleiner-grau">keine</div>
+    </div>
+    <div class="karte">
+      <h2>Ollama-Modelle im Speicher</h2>
+      <div id="guard-ollama" class="kleiner-grau">keine geladen</div>
+    </div>
+    <div class="karte">
+      <h2>Ereignis-Log</h2>
+      <div id="guard-log" class="glog">–</div>
+    </div>
+  </div>
+</section>
+
+<div class="fuss" id="fuss">Verbinde mit API auf Port 8899 …</div>
+
+<p style="text-align: center; margin-top: 20px; font-size: 0.75rem; color: #8b90a5;">Betaeuert von Kays Mac Mini · Guard vollintegriert</p>
+
+<script>
+const API = window.location.protocol.startsWith("http") ? "/api" : "http://127.0.0.1:8899/api";
+
+function $(id) { return document.getElementById(id); }
+
+function farbe(proz) {
+  if (proz == null) return "";
+  if (proz < 60) return "gruen";
+  if (proz < 85) return "gelb";
+  return "rot";
+}
+
+function balken(id, proz) {
+  const b = $(id);
+  b.style.width = (proz == null ? 0 : Math.min(proz, 100)) + "%";
+  b.className = "balken " + farbe(proz);
+}
+
+function uptimeText(s) {
+  if (s == null) return "–";
+  const t = Math.floor(s / 86400);
+  const h = Math.floor((s % 86400) / 3600);
+  const m = Math.floor((s % 3600) / 60);
+  if (t > 0) return t + " T " + h + " h";
+  if (h > 0) return h + " h " + m + " min";
+  return m + " min";
+}
+
+async function lade() {
+  try {
+    const r = await fetch(API, { cache: "no-store" });
+    if (!r.ok) throw new Error("HTTP " + r.status);
+    const d = await r.json();
+
+    $("hostname").textContent = d.hostname ?? "–";
+    $("system").textContent = d.system ?? "–";
+    $("zeit").textContent = d.zeit ?? "–";
+
+    $("cpu").textContent = d.cpu_prozent ?? "–";
+    $("kerne").textContent = d.cpu_kerne ?? "–";
+    $("last").textContent = d.last ?? "–";
+    balken("cpu-balken", d.cpu_prozent);
+
+    if (d.ram) {
+      $("ram-proz").textContent = d.ram.prozent ?? "–";
+      $("ram-werte").textContent = d.ram.genutzt_gb + " / " + d.ram.gesamt_gb;
+      balken("ram-balken", d.ram.prozent);
+    }
+
+    if (d.platte) {
+      $("disk-proz").textContent = d.platte.prozent;
+      $("disk-werte").textContent = d.platte.frei_gb;
+      $("disk-gesamt").textContent = d.platte.gesamt_gb;
+      balken("disk-balken", d.platte.prozent);
+    }
+
+    if (d.thermal) {
+      $("cpu-speed-limit").textContent = d.thermal.cpu_speed_limit ?? "–";
+      $("temperature-main").textContent = d.thermal.temperatures.main ?? "–";
+      $("gpu-temp").textContent = d.thermal.temperatures.gpu ?? "–";
+      $("fan-rpm").textContent = d.thermal.fan_rpm ?? "–";
+      balken("thermal-balken", d.thermal.cpu_speed_limit);
+    }
+
+    $("uptime").textContent = uptimeText(d.uptime_s);
+
+    if (d.gemma) {
+      const g = d.gemma;
+      $("gemma-aktion").textContent = g.aktion || "–";
+      $("gemma-detail").textContent = g.detail || "";
+      $("gemma-meta").textContent = [g.modell, g.projekt, g.status, g.zeit].filter(Boolean).join(" · ");
+      $("gemma-punkt").style.background = g.status === "aktiv" ? "#4ade80" : "#8b90a5";
+      $("gemma-aktion").style.color = g.status === "aktiv" ? "#4ade80" : "";
+    }
+
+    $("status-punkt").style.background = "var(--gruen)";
+    $("fuss").className = "fuss";
+    $("fuss").textContent = "Datenquelle: api.py (Port 8899) · Aktualisierung alle 5 s";
+  } catch (e) {
+    $("status-punkt").style.background = "var(--rot)";
+    $("fuss").className = "fuss fehler";
+    $("fuss").textContent = "API nicht erreichbar (" + e.message + ") – starte sie mit: python3 api.py";
+  }
+}
+
+lade();
+setInterval(lade, 5000);
+
+/* ── mini-guard (RAM-Waechter) - voll integriert ── */
+const GUARD_API = window.location.protocol.startsWith("http") ? "/guard/api" : "http://127.0.0.1:8850/api";
+let guardTok = new URLSearchParams(location.search).get("t");
+if (guardTok) { try { localStorage.setItem("guard_token", guardTok); } catch (e) {} }
+else { try { guardTok = localStorage.getItem("guard_token") || ""; } catch (e) { guardTok = ""; } }
+const MODUS_TXT = { active: "Regelt", observe: "Beobachtet", off: "Aus" };
+const P_TXT = { 1: "normal", 2: "Warnung", 3: "kritisch", 4: "NOTFALL" };
+const P_FARB = { 1: "var(--gruen)", 2: "var(--gelb)", 3: "#e36209", 4: "var(--rot)" };
+
+function esc(x) {
+  return String(x ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+}
+
+function guardApi(pfad, body) {
+  const url = GUARD_API + pfad + "?t=" + encodeURIComponent(guardTok);
+  return fetch(url, body ? { method: "POST", body: JSON.stringify(body) } : { cache: "no-store" })
+    .then(r => { if (!r.ok) throw new Error("HTTP " + r.status); return r.json(); });
+}
+
+async function guardAct(pid, action) {
+  try { await guardApi("/action", { pid, action }); } catch (e) {}
+  ladeGuard();
+}
+async function guardMode(mode) {
+  try { await guardApi("/mode", { mode }); } catch (e) {}
+  ladeGuard();
+}
+document.querySelectorAll(".modus-schalter button").forEach(b =>
+  b.onclick = () => guardMode(b.dataset.mode));
+
+function guardOhneToken() {
+  $("guard-main").textContent = "Token fehlt";
+  $("guard-main").style.color = "";
+  $("guard-detail").textContent = "Einmal gemmini.gemivo.de/?t=… (Guard-Token) aufrufen, dann ist hier alles live.";
+  $("guard-hinweis").textContent = "· ohne Token keine Live-Daten";
+  $("guard-procs").innerHTML = '<tr><td colspan="7" class="kleiner-grau">Token fehlt</td></tr>';
+  $("guard-paused").textContent = "–";
+  $("guard-ollama").textContent = "–";
+  $("guard-log").textContent = "–";
+}
+
+async function ladeGuard() {
+  if (!guardTok) { guardOhneToken(); return; }
+  try {
+    const s = await guardApi("/status");
+    const m = s.metrics || {};
+    const p = m.pressure;
+
+    /* Karte im Raster */
+    $("guard-main").textContent = "Speicherdruck " + (p ?? "?") + " · " + (P_TXT[p] || "?");
+    $("guard-main").style.color = P_FARB[p] || "";
+    $("guard-detail").textContent = "RAM frei " + (m.free_gb ?? "?") + " GB · Swap " +
+      Math.round(m.swap_mb ?? 0) + " MB · Load " +
+      (m.load != null ? m.load.toFixed(1) : "?");
+    $("guard-punkt").style.background = p === 1 ? "var(--gruen)" : (p >= 3 ? "var(--rot)" : "var(--gelb)");
+    document.querySelectorAll(".modus-schalter button").forEach(b =>
+      b.classList.toggle("on", b.dataset.mode === s.mode));
+
+    /* Prozesstabelle */
+    const pausiertPids = (s.paused || []).map(x => x.pid);
+    $("guard-procs").innerHTML = (s.procs || []).map(pr => {
+      const btns = pr.klasse !== "protected"
+        ? "<button class='gbtn' onclick=\"guardAct(" + pr.pid + ",'pause')\">Pause</button>" +
+          "<button class='gbtn stop' onclick=\"guardAct(" + pr.pid + ",'term')\">Stop</button>"
+        : "";
+      const weiter = pausiertPids.includes(pr.pid)
+        ? "<button class='gbtn' onclick=\"guardAct(" + pr.pid + ",'resume')\">Weiter</button>" : "";
+      return "<tr class='" + pr.klasse + (pausiertPids.includes(pr.pid) ? " paused" : "") + "'>" +
+        "<td>" + pr.pid + "</td><td><b>" + pr.mb + "</b> MB</td><td>" + pr.cpu + "%</td>" +
+        "<td>" + pr.etime + "</td><td><span class='tag " + pr.klasse + "'>" + pr.klasse + "</span></td>" +
+        "<td class='cmd' title='" + esc(pr.cmd) + "'>" + esc(pr.cmd) + "</td>" +
+        "<td>" + weiter + btns + "</td></tr>";
+    }).join("") || '<tr><td colspan="7" class="kleiner-grau">nichts Grosses aktiv</td></tr>';
+
+    /* Pausierte Jobs */
+    $("guard-paused").innerHTML = (s.paused || []).length
+      ? s.paused.map(x => "PID <b>" + x.pid + "</b> · seit " + x.since + " · " +
+        "<button class='gbtn' onclick=\"guardAct(" + x.pid + ",'resume')\">Jetzt fortsetzen</button>" +
+        "<div class='cmd'>" + esc(x.cmd) + "</div>").join("<hr style='border-color:#21262d'>")
+      : "keine";
+
+    /* Ollama */
+    $("guard-ollama").innerHTML = (s.ollama || []).length
+      ? s.ollama.map(o => "<span class='tag heavy'>" + esc(o.name) + "</span> " + esc(o.size)).join(" ")
+      : "keine geladen";
+
+    /* Ereignis-Log */
+    $("guard-log").innerHTML = (s.events || []).slice().reverse()
+      .map(e => "<div>" + esc(e).replace(/^(\S+)/, "<span class='jetzt'>$1</span>") + "</div>").join("");
+  } catch (e) {
+    $("guard-main").textContent = "Guard nicht erreichbar";
+    $("guard-main").style.color = "var(--rot)";
+    $("guard-detail").textContent = e.message;
+    $("guard-hinweis").textContent = "";
+  }
+}
+ladeGuard();
+setInterval(ladeGuard, 5000);
+</script>
+</body>
+</html>
