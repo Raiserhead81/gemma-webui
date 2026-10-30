@@ -3765,7 +3765,7 @@ window.gemmaIntern = {
   "use strict";
   const M = (id) => document.getElementById(id);
   function acadLaden() {
-    fetch("https://gemmini.gemivo.de/academy/latest.json", { cache: "no-store" })
+    fetch("/academy/latest.json", { cache: "no-store" })
       .then((r) => { if (!r.ok) throw new Error("HTTP " + r.status); return r.json(); })
       .then((d) => {
         const st = d.stats || {}, le = d.lesson || {}, pr = d.problems || {};
