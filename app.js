@@ -2972,6 +2972,28 @@ function radarStart() {
   state.radar.liste = setInterval(radarFramesHolen, 300000);
 }
 
+/* Regen in X Minuten: Open-Meteo minutely_15 -> Radar-Kachel-Hinweis
+   (Kay, 03.11.: "ich sehe nicht wann es wieder regnet"). */
+function regenPrognose(){
+  if(!state.bilder)return;
+  fetch("https://api.open-meteo.com/v1/forecast?latitude=53.8655&longitude=10.6866&minutely_15=precipitation&forecast_days=1&timezone=Europe%2FBerlin",{cache:"no-store"})
+  .then(function(r){return r.json()}).then(function(d){
+    try{
+      var z=d.minutely_15.time,w=d.minutely_15.precipitation,jetzt=Date.now(),ab="",abTs=0,bis="",i,tt;
+      for(i=0;i<z.length;i++){tt=new Date(z[i]).getTime();if(tt<jetzt-900000)continue;
+        if(!ab&&w[i]>0.1){ab=z[i].slice(11,16);abTs=tt}else if(ab&&w[i]<=0.1){bis=z[i].slice(11,16);break}}
+      var txt="";
+      if(ab){txt="Regen ab "+ab+(bis?" – "+bis:"");
+        var mins=Math.round((abTs-jetzt)/60000);
+        if(mins>0&&mins<180)txt+=" · in "+mins+" min";}
+      else{var trock=0;for(var k2=0;k2<z.length;k2++){var t2=new Date(z[k2]).getTime();if(t2>jetzt&&w[k2]<=0.1)trock+=15}
+        txt="Trocken · mind. "+(trock>=120?"2 h":(Math.round(trock/60*10)/10+" h"));}
+      radarHinweisSetzen(txt);
+    }catch(e){}
+  }).catch(function(){});
+}
+setTimeout(regenPrognose,4000);setInterval(regenPrognose,180000);
+
 /* Radar-Kachel auf der Wand: gleiche Frames und Timers wie im Overlay.
    Bilder aus: Hinweis statt Radar, es wird nichts geladen. */
 function radarKachelStart() {

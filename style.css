@@ -20,6 +20,36 @@
 
 html { font-size: clamp(9px, 0.95vw, 22px); }
 
+/* Lenovo-Wandtablet (11 Zoll quer, 960x600 CSS-px, ?tablet=1): Basis-Schrift
+   ~25% hoeher - Echo-Show-15-Verhaeltnisse auf kleinerem Display, Kachel-
+   werte aus 1-2 m lesbar. clamp-Deckel 22px greift erst weit ueber 1870px. */
+html.tablet { font-size: clamp(9px, 1.06vw, 22px); }
+
+/* Lenovo-Wandtablet Layout (?tablet=1, 960x600 quer): Fotos und Kachel-
+   raster UNTEREINANDER (die ohne-gespraech-Spaltenregeln wuerden sie sonst
+   nebeneinander in eine flache Zeile quetschen und die zweite Grid-Zeile
+   bleibt leer - gemessen 03.11.). Raster 3 Spalten x 3 Reihen fuer die 9
+   Kacheln, Echo-Show-Spans (16er-Feinraster) greifen hier nicht. */
+html.tablet main, html.tablet main.ohne-fotos,
+html.tablet main.ohne-gespraech, html.tablet main.ohne-gespraech.ohne-fotos {
+  grid-template-columns: 1fr !important;
+  grid-template-rows: 30% 1fr !important;
+}
+html.tablet main.ohne-fotos,
+html.tablet main.ohne-gespraech.ohne-fotos { grid-template-rows: 1fr !important; }
+html.tablet .raster {
+  grid-template-columns: 1fr 1fr 1fr !important;
+  grid-template-rows: 1fr 1fr 1fr !important;
+  align-content: stretch;
+}
+html.tablet .raster .kachel {
+  grid-column: auto !important;
+  grid-row: auto !important;
+  min-height: 0 !important;
+  overflow: hidden;
+}
+html.tablet .radar-karte { min-height: 12rem; }
+
 body {
   background:
     radial-gradient(120rem 60rem at 85% -10%, rgba(124,108,240,0.14), transparent 60%),
