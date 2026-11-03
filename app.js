@@ -2994,6 +2994,30 @@ function regenPrognose(){
 }
 setTimeout(regenPrognose,4000);setInterval(regenPrognose,180000);
 
+/* Lampen-Kachel (Kay, 03.11.: Bio raus, Lampen + Status + Steuerung rein):
+   GET /api/licht (Hue via gemmini-Tunnel-Proxy), Tap = POST schaltet. */
+function lampenHolen(){
+  fetch("/api/licht",{cache:"no-store"}).then(function(r){return r.json()}).then(function(d){
+    try{
+      if(!d.ok)return;
+      var st=document.getElementById("lampen-stand"),ch=document.getElementById("lampen-chips");
+      if(st)st.textContent=d.an+" / "+d.gesamt+" an";
+      if(ch&&d.lampen){var h="";
+        d.lampen.forEach(function(l){h+='<button class="lampen-chip'+(l.on?" an":"")+'" data-id="'+l.id+'" data-on="'+(l.on?1:0)+'" type="button">'+l.name+"</button>"});
+        ch.innerHTML=h}
+    }catch(e){}
+  }).catch(function(){});
+}
+document.addEventListener("click",function(ev){
+  var b=ev.target&&ev.target.closest?ev.target.closest(".lampen-chip"):null;
+  if(!b)return;
+  var an=b.getAttribute("data-on")!=="1";
+  b.disabled=true;
+  fetch("/api/licht",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({id:b.getAttribute("data-id"),an:an})})
+  .then(function(){setTimeout(lampenHolen,600)}).catch(function(){b.disabled=false});
+});
+setTimeout(lampenHolen,3000);setInterval(lampenHolen,20000);
+
 /* Radar-Kachel auf der Wand: gleiche Frames und Timers wie im Overlay.
    Bilder aus: Hinweis statt Radar, es wird nichts geladen. */
 function radarKachelStart() {

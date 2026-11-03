@@ -2352,3 +2352,13 @@ body.tab-weg .heizung-zeile.hz-laeuft .hz-soll { animation-play-state: paused !i
 .server-balken i.b-gelb { background: var(--gelb); }
 .server-balken i.b-rot { background: var(--rot); }
 .system-kachel .system-spalte { flex: 1 1 0; min-width: 0; }
+
+/* Lampen-Kachel (Wandstation) */
+.lampen-stand { font-size: 1.6rem; font-weight: 300; color: #eaf0ff; margin: .45rem 0 .6rem; }
+.lampen-chips { display: flex; flex-wrap: wrap; gap: .45rem; }
+.lampen-chip { border: 1px solid rgba(255,255,255,.14); background: rgba(255,255,255,.05);
+  color: #c8cede; border-radius: 999px; padding: .3rem .75rem; font-size: .8rem;
+  cursor: pointer; transition: all .25s ease; }
+.lampen-chip.an { background: rgba(255,209,102,.16); border-color: rgba(255,209,102,.5);
+  color: #ffd166; box-shadow: 0 0 10px rgba(255,209,102,.28); }
+.lampen-chip:disabled { opacity: .45; }
