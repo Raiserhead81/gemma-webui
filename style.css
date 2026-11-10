@@ -382,6 +382,10 @@ main {
 }
 /* AI-Trader rechte Spalte: breiter Zahlenspalte zuliebe schmal - Zeilen
    duerfen hier zweizeilig laufen, damit NICHTS abgeschnitten wird (Kay). */
+#k-wett .wett-zeile-gross, #k-wett .kachel-zusatz {
+  white-space: normal;
+  overflow-wrap: break-word;
+}
 #k-aitrader .wett-zeile-gross, #k-aitrader .kachel-zusatz {
   white-space: normal;
   overflow-wrap: break-word;
