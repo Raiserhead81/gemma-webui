@@ -451,9 +451,10 @@ main {
   from { opacity: 0; transform: translateY(5px); }
 }
 
-/* Angeschnittener Kachelinhalt (Termine-Restzeilen, Heizung) fadet sanft
-   in den Kachel-Grund statt hart an der Kante abzuschneiden. */
-#k-termine::after, #k-heizung::after, #k-lampen::after {
+/* Lampen-Chips laufen scrollbar weiter - sanftes Fade statt harter Kante.
+   Termine/Heizung brauchen das nicht mehr: deren Render-Logik (inKachelPassen)
+   entfernt, was nicht ganz reinpasst, und vermerkt es als "+N". */
+#k-lampen::after {
   content: "";
   position: absolute;
   left: 1px; right: 1px; bottom: 1px;
@@ -461,6 +462,12 @@ main {
   border-radius: 0 0 1.3rem 1.3rem;
   background: linear-gradient(180deg, rgba(18, 26, 38, 0), var(--karte) 82%);
   pointer-events: none;
+}
+/* Heizung: "+N im Overlay" wenn nicht alle Zonen reinpassen */
+.heizung-rest-hinweis {
+  font-size: 0.72rem;
+  color: var(--text-dunkel);
+  letter-spacing: 0.06em;
 }
 
 /* System-Kachel in 6/16-Breite: Fuss/Stand-Zeilen einzeilig mit Ellipsis,

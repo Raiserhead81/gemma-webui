@@ -1641,6 +1641,20 @@ function svgFlamme() {
     "</svg>";
 }
 
+/* Passt der Inhalt in die Kachel? (Kay 10.11.: "halbe Zeilen sind Mist")
+   Entfernt die letzten Kinder, bis nichts mehr an der Kante gevierteilt
+   wird; liefert die Anzahl der entfernten Elemente. */
+function inKachelPassen(box, minBehalten) {
+  let entfernt = 0;
+  let guard = 20;
+  while (guard-- > 0 && box.scrollHeight > box.clientHeight + 1 &&
+         box.children.length > minBehalten) {
+    box.lastElementChild.remove();
+    entfernt++;
+  }
+  return entfernt;
+}
+
 function kachelHeizung(zonen) {
   const box = $("heizung-liste");
   const kachel = $("k-heizung");
@@ -1772,6 +1786,27 @@ function kachelHeizung(zonen) {
     fehler.className = "kachel-zusatz heizung-fehler-text";
     fehler.textContent = state.heizungFehler;
     box.append(fehler);
+  }
+  /* Passt nicht alles rein: Zonen wegnehmen, die oben komplett sichtbar
+     bleiben, und ehrlich " +N" vermerken statt unten abzuhacken. */
+  const fehlen = inKachelPassen(box, 1);
+  if (fehlen > 0) {
+    const hinweis = document.createElement("div");
+    hinweis.className = "heizung-rest-hinweis";
+    hinweis.textContent = "+" + fehlen + " im Overlay";
+    box.append(hinweis);
+    if (box.scrollHeight > box.clientHeight + 1) {
+      /* kein Platz fuer die Unterzeile: "+N" an die Label-Zeile */
+      hinweis.remove();
+      const k = $("k-heizung");
+      const label = k && k.querySelector(".kachel-label");
+      if (label && !label.querySelector(".heizung-rest-hinweis")) {
+        const mini = document.createElement("span");
+        mini.className = "heizung-rest-hinweis";
+        mini.textContent = "+" + fehlen;
+        label.append(" ", mini);
+      }
+    }
   }
   /* Ueberall heisst es: dezenter warmer Glow an der ganzen Kachel */
   if (kachel) kachel.classList.toggle("heizung-voll", heiztAlle && zonen.length > 0);
@@ -2170,7 +2205,9 @@ function kachelTermine(termine) {
   hero.append(zeile, titel);
   box.append(hero);
   /* bis zu 2 weitere Termine als kompakte Zeilen; dann rückt der Titel
-     auf eine Zeile zusammen, damit nichts abgeschnitten wird */
+     auf eine Zeile zusammen, damit nichts abgeschnitten wird. Passt es
+     TROTZDEM nicht (Kay: keine halben Zeilen): Restzeilen wegnehmen und
+     die Zahl ehrlich an den Countdown-Chip haengen. */
   const weitere = kommend.slice(1, 3);
   if (weitere.length) {
     box.classList.add("hat-weitere");
@@ -2192,6 +2229,21 @@ function kachelTermine(termine) {
       rest.append(klein);
     }
     box.append(rest);
+  }
+  /* PASSUNGS-LAUF: Restzeilen, die unten rausgeviertelt wuerden, hier
+     komplett entfernen; statt halber Zeile gibt es "+N" am Chip. */
+  const restBox = box.querySelector(".termin-rest");
+  if (restBox) {
+    const vorher = restBox.children.length;
+    const weg = inKachelPassen(box, 1);   /* entfernt ganze Kinder der Liste */
+    const restWeg = box.contains(restBox)
+      ? vorher - restBox.children.length
+      : vorher;
+    if (restWeg > 0 && chipEl && chipEl.hidden === false) {
+      chipEl.textContent = chipEl.textContent.replace(/ \+\d+$/, "") +
+        " +" + restWeg;
+    }
+    if (box.contains(restBox) && restBox.children.length === 0) restBox.remove();
   }
 }
 
