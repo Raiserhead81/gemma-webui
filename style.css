@@ -451,23 +451,37 @@ main {
   from { opacity: 0; transform: translateY(5px); }
 }
 
-/* Lampen-Chips laufen scrollbar weiter - sanftes Fade statt harter Kante.
-   Termine/Heizung brauchen das nicht mehr: deren Render-Logik (inKachelPassen)
-   entfernt, was nicht ganz reinpasst, und vermerkt es als "+N". */
-#k-lampen::after {
-  content: "";
-  position: absolute;
-  left: 1px; right: 1px; bottom: 1px;
-  height: 2.4rem;
-  border-radius: 0 0 1.3rem 1.3rem;
-  background: linear-gradient(180deg, rgba(18, 26, 38, 0), var(--karte) 82%);
-  pointer-events: none;
-}
-/* Heizung: "+N im Overlay" wenn nicht alle Zonen reinpassen */
-.heizung-rest-hinweis {
+/* Termine/Heizung/Lampen: Die Render-Logik (inKachelPassen) zeigt nur,
+   was KOMPLETT reinpasst und vermerkt den Rest als "+N" - kein Fade mehr,
+   das halbe Zeilen kaschiert hat (Kay 10.11.). */
+.heizung-rest-hinweis, .lampen-rest-hinweis {
   font-size: 0.72rem;
   color: var(--text-dunkel);
   letter-spacing: 0.06em;
+}
+
+/* Heizung kompakt (2-3 Zonen in Reihe 1): Zeile QUER mit kleinen Werten
+   und Steppern - der alte Spalten-Stil (1.35rem, grosse SVGs) produziert
+   165px-Zeilen, die nie in die 141px-Kachel passen (Kay 10.11.). */
+.heizung-liste.heizung-kompakt .heizung-zeile {
+  flex-direction: row;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.9rem;
+}
+.heizung-liste.heizung-kompakt .heizung-texte {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  flex: 1;
+}
+.heizung-liste.heizung-kompakt .heizung-name { font-size: 0.95rem; }
+.heizung-liste.heizung-kompakt .heizung-wert { font-size: 0.8rem; }
+.heizung-liste.heizung-kompakt .hz-btn {
+  width: 26px; height: 26px; min-width: 26px; font-size: 15px;
+}
+.heizung-liste.heizung-kompakt .hz-soll {
+  height: 26px; font-size: 0.95rem; min-width: 44px;
 }
 
 /* System-Kachel in 6/16-Breite: Fuss/Stand-Zeilen einzeilig mit Ellipsis,
@@ -903,6 +917,11 @@ body.tab-weg .musik-eq span { animation-play-state: paused; }
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
+  /* NUR den sichtbaren Restplatz nutzen (Kay 10.11.): sonst waechst die
+     Liste ueber die Kachel hinaus und wird unten unsichtbar geclippt. */
+  flex: 1;
+  min-height: 0;
+  margin-top: 0.15rem;
 }
 .heizung-zeile {
   display: flex;
@@ -2520,14 +2539,18 @@ body.tab-weg .heizung-zeile.hz-laeuft .hz-soll { animation-play-state: paused !i
 
 /* Lampen-Kachel (Wandstation) - kompakt fuer 24 Chips (Hue+Govee+Twinkly) */
 #k-lampen { display: flex; flex-direction: column; padding: 0.8rem 1.3rem; }
+/* Flex-Spalte wie Termine/Lampen: erst dadurch begrenzt flex:1 an der
+   heizung-liste den Inhalt auf den sichtbaren Bereich (Kay 10.11.) */
+#k-heizung { display: flex; flex-direction: column; }
 #k-lampen .kachel-label { margin-bottom: 0.35rem; }
-.lampen-stand { font-size: 1.35rem; font-weight: 300; color: #eaf0ff; margin: .15rem 0 .25rem; }
+.lampen-stand { font-size: 1.2rem; font-weight: 300; color: #eaf0ff; margin: .1rem 0 .2rem; }
 /* Mind. eine Chip-Reihe sichtbar: flex-Shrink allein drueckt den Bereich
    im 143px-Reihe-1-Slot auf Hoehe 0 (gemessen 10.11.). Scroll bleibt an. */
 #k-lampen .lampen-chips { min-height: 2rem; }
 .lampen-chips { display: flex; flex-wrap: wrap; gap: .3rem; flex: 1; overflow-y: auto; min-height: 0; align-content: flex-start; }
+/* Kompakt (Kay 10.11.): mehr Chips komplett sichtbar in Reihe 1 */
 .lampen-chip { border: 1px solid rgba(255,255,255,.14); background: rgba(255,255,255,.05);
-  color: #c8cede; border-radius: 999px; padding: .26rem .6rem; font-size: .74rem;
+  color: #c8cede; border-radius: 999px; padding: .12rem .45rem; font-size: .62rem;
   cursor: pointer; transition: all .25s ease; }
 .lampen-chip.an { background: rgba(255,209,102,.16); border-color: rgba(255,209,102,.5);
   color: #ffd166; box-shadow: 0 0 10px rgba(255,209,102,.28); }

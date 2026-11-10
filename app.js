@@ -1662,6 +1662,9 @@ function kachelHeizung(zonen) {
      (Buttons werden neu gebaut, pointerup geht verloren). */
   if (state.heizungGeste > 0) return;
   box.innerHTML = "";
+  const altesLabelHinweis = $("k-heizung") &&
+    $("k-heizung").querySelector(".kachel-label .heizung-rest-hinweis");
+  if (altesLabelHinweis) altesLabelHinweis.remove();
   state.kachelDaten["k-heizung"] = zonen || null;
   if (!zonen || !zonen.length) {
     if (kachel) kachel.classList.remove("heizung-voll");
@@ -1673,11 +1676,14 @@ function kachelHeizung(zonen) {
   }
   const dicht = zonen.length >= 4;
   const micro = zonen.length >= 5;
+  const kompakt = zonen.length >= 2 && !dicht && !micro;
   box.classList.toggle("heizung-dicht", dicht);
   box.classList.toggle("heizung-micro", micro);
+  box.classList.toggle("heizung-kompakt", kompakt);
   if (kachel) {
     kachel.classList.toggle("heizung-dicht", dicht);
     kachel.classList.toggle("heizung-micro", micro);
+    kachel.classList.toggle("heizung-kompakt", kompakt);
   }
   let heiztAlle = true;
   for (const z of zonen) {
@@ -1754,7 +1760,9 @@ function kachelHeizung(zonen) {
     wert.textContent = heizungIstWasser(z)
       ? (wasserStatus || (sollTxt ? `${ist} · soll ${sollTxt}` : ist))
       : (sollTxt ? `ist ${ist} · soll ${sollTxt}` : `ist ${ist}`);
-    if (heizungStepperMoeglich(ze) && zonen.length <= 2) {
+    /* Breit-Modus (Stepper unter Text) nur bei EINER Zone: ab 2 Zonen
+   passt er in die Reihe-1-Kachel nie komplett (Kay 10.11.). */
+    if (heizungStepperMoeglich(ze) && zonen.length === 1) {
       /* Viel Platz (1-2 Zonen): Name-Zeile ohne angehaengtes Ist, DARUNTER
          die kompakte Fakten-Zeile "ist X · soll Y" (umbrechbar, nie
          abgeschnitten), Stepper-Zeile darunter wie bisher. */
@@ -3061,7 +3069,18 @@ function lampenHolen(){
         L.forEach(function(l){
           var unb=(l.on===null||l.on===undefined);
           h+='<button class="lampen-chip'+(l.on===true?" an":"")+(unb?" unbekannt":"")+'" data-id="'+l.id+'" data-on="'+(l.on===true?1:0)+'" type="button" title="'+(unb?"Status unbekannt · Tippen schaltet ein":"Tippen zum Schalten")+'">'+(unb?"· ":"")+l.name+"</button>"});
-        ch.innerHTML=h}
+        ch.innerHTML=h;
+        /* Nur Chips zeigen, die KOMPLETT in die Kachel passen (Kay: nichts
+           halb Geschnittenes); der Rest wird ehrlich als "+N" vermerkt. */
+        var wegg=0;
+        while(ch.scrollHeight>ch.clientHeight+1 && ch.children.length){ch.lastChild.remove();wegg++}
+        if(wegg>0){
+          /* Hinweis in die Stand-Zeile statt als eigene Reihe: eine Chip-Reihe
+             mehr sichtbar (Kay 10.11.) */
+          var st2=document.getElementById("lampen-stand");
+          if(st2)st2.textContent+=" · +"+wegg;
+        }
+      }
     }catch(e){}
   }).catch(function(){});
 }
