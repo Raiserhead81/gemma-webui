@@ -325,9 +325,12 @@ main {
 #k-wetter  { grid-column: 1 / 7;   grid-row: 3; }
 #k-welt    { grid-column: 7 / 13;  grid-row: 3; }
 #k-markt   { grid-column: 13 / 17; grid-row: 3; }
-#k-academy { grid-column: 1 / -1;  grid-row: 4; }
+/* Reihe 4 (Kay 10.11.): Academy, Wettbot und AI Trader nebeneinander. */
+#k-academy { grid-column: 1 / 7;   grid-row: 4; }
+#k-wett    { grid-column: 7 / 12;  grid-row: 4; }
+#k-aitrader { grid-column: 12 / 17; grid-row: 4; }
 
-/* Academy-Kachel (Kays Trainings-Cockpit, Reihe 4, volle Wandbreite) */
+/* Academy-Kachel (Kays Trainings-Cockpit, Reihe 4, linke Spaalte) */
 .academy-koerper { display: flex; flex-direction: column; gap: 10px; min-height: 0; }
 .academy-haupt { display: flex; align-items: baseline; gap: 14px; flex-wrap: wrap; }
 .academy-rate { font-size: 2.6rem; font-weight: 800; line-height: 1.1; }
@@ -339,6 +342,63 @@ main {
   transition: width 1s ease;
 }
 .academy-letzte { color: var(--dim, #8b949e); font-size: 0.85rem; }
+
+/* AI-Trader-Kachel (Reihe 4): gleiche Zahlensprache wie Wettbot */
+.aitrader-koerper {
+  display: flex; flex-direction: column; gap: 7px; height: 100%;
+  min-height: 0;
+}
+
+/* Reihe 4 Kompakt (Kay 10.11., gemessen): 2-spaltiger Koerper - grosse Zahl
+   links, Faktenzeilen rechts - damit die Reihe ~190px bleibt und Reihe 1/3
+   ihre vollen 143/245px zurueckbekommen (Wetter war abgeschnitten).
+   ID-stark, damit die spaetere .wett-koerper-Flexregel (Zeile ~1686) nicht
+   gewinnt. */
+#k-wett .wett-koerper, #k-aitrader .aitrader-koerper {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  column-gap: 1.4rem;
+  row-gap: 2px;
+  align-content: center;
+}
+#k-wett .wett-bank, #k-aitrader .wett-bank {
+  grid-column: 1;
+  grid-row: 1 / 4;
+  align-self: center;
+  font-size: 34px;
+}
+#k-wett .wett-diff, #k-aitrader .wett-diff {
+  grid-column: 1;
+  grid-row: 4 / 6;
+  align-self: center;
+  font-size: 14px;
+}
+#k-wett .wett-zeile-gross, #k-aitrader .wett-zeile-gross,
+#k-wett .kachel-zusatz, #k-aitrader .kachel-zusatz {
+  grid-column: 2;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+/* Academy kompakt (Reihe 4 = 191px Budget): sonst drueckt sie Reihe 1+3
+   zusammen und Wetter/ZTermine werden abgeschnitten (gemessen 10.11.). */
+#k-academy .academy-koerper { gap: 6px; }
+#k-academy .academy-rate { font-size: 2rem; }
+#k-academy .academy-balken { height: 10px; border-radius: 5px; }
+#k-academy .academy-letzte { font-size: 0.8rem; }
+
+/* Wetter kompakt (Reihe 3 Budget, gemessen 10.11.): min-content war 291px
+   bei 238px Reihenhoehe - Regen-/Windzeilen abgeschnitten. Icon und Zeilen
+   eine Stufe kleiner, Kachel-Chrome schmaler. */
+#k-wetter { padding: 0.8rem 1.3rem; }
+#k-wetter .kachel-label { margin-bottom: 0.3rem; padding-bottom: 0.3rem; }
+#k-wetter .wtag-svg { width: 2.5rem; height: 2.5rem; }
+#k-wetter .wtag-werte { font-size: 1.2rem; }
+#k-wetter .wtag-werte b { font-size: 1.5rem; }
+#k-wetter .wtag-regen { font-size: 0.85rem; }
+#k-wetter .wtag-wind { font-size: 0.85rem; }
+/* Radar-Band gibt 1vh an die Kachel-Reihen (Reihe 3 braucht die Zeilen) */
+.raster { grid-template-rows: minmax(0, 0.85fr) minmax(14rem, 23vh) minmax(0, 1.45fr); }
 
 /* Angeschnittener Kachelinhalt (Termine-Restzeilen, Heizung) fadet sanft
    in den Kachel-Grund statt hart an der Kante abzuschneiden. */
@@ -1183,7 +1243,7 @@ main:not(.ohne-fotos) .gespraech-kachel .kachel-label { letter-spacing: 0.14em; 
   main.ohne-gespraech.ohne-fotos { grid-template-rows: 1fr; }
   .raster { grid-template-columns: 1fr 1fr; grid-template-rows: auto; }
   #k-musik, #k-vital, #k-heizung, #k-termine, #k-wetter, #k-radar, #k-welt, #k-markt,
-  #k-lampen, #k-academy {
+  #k-lampen, #k-academy, #k-wett, #k-aitrader {
     grid-column: auto;
     grid-row: auto;
   }
@@ -1368,6 +1428,24 @@ main:not(.ohne-fotos) .gespraech-kachel .kachel-label { letter-spacing: 0.14em; 
   padding: 0.25rem 0.7rem;
   border-radius: 1.6rem;
   pointer-events: none;
+}
+
+/* Prognose/Hinweis ("Trocken · mind. 2 h") als Pille UNTEN MITTIG statt
+   Vollflaechen-Overlay: zentrierter Text lag halb ueber dem Luebeck-Marker
+   (Kay, 10.11.). Quelle-Pill rückt auf schmalen Kacheln nach links. */
+#k-radar .radar-hinweis {
+  inset: auto;
+  left: 50%;
+  bottom: 0.6rem;
+  transform: translateX(-50%);
+  width: max-content;
+  max-width: 70%;
+  z-index: 3;
+  background: rgba(6, 10, 16, 0.72);
+  padding: 0.3rem 1rem;
+  border-radius: 1.6rem;
+  font-size: 1.05rem;
+  color: #c9d6ea;
 }
 
 /* ---------- gemivo-Welt + News ---------- */

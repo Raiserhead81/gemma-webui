@@ -2995,15 +2995,20 @@ function regenPrognose(){
 setTimeout(regenPrognose,4000);setInterval(regenPrognose,180000);
 
 /* Lampen-Kachel (Kay, 03.11.: Bio raus, Lampen + Status + Steuerung rein):
-   GET /api/licht (Hue via gemmini-Tunnel-Proxy), Tap = POST schaltet. */
+   GET /api/licht (Hue+Govee+Twinkly via gemmini-Tunnel-Proxy), Tap = POST schaltet.
+   on===null (Govee) = Status unbekannt: keine an-Klasse, Marker · , Tap schaltet ein. */
 function lampenHolen(){
   fetch("/api/licht",{cache:"no-store"}).then(function(r){return r.json()}).then(function(d){
     try{
       if(!d.ok)return;
       var st=document.getElementById("lampen-stand"),ch=document.getElementById("lampen-chips");
-      if(st)st.textContent=d.an+" / "+d.gesamt+" an";
-      if(ch&&d.lampen){var h="";
-        d.lampen.forEach(function(l){h+='<button class="lampen-chip'+(l.on?" an":"")+'" data-id="'+l.id+'" data-on="'+(l.on?1:0)+'" type="button">'+l.name+"</button>"});
+      var L=d.lampen||[],anz=0;
+      L.forEach(function(l){if(l.on===true)anz++});
+      if(st)st.textContent=anz+" an von "+L.length;
+      if(ch){var h="";
+        L.forEach(function(l){
+          var unb=(l.on===null||l.on===undefined);
+          h+='<button class="lampen-chip'+(l.on===true?" an":"")+(unb?" unbekannt":"")+'" data-id="'+l.id+'" data-on="'+(l.on===true?1:0)+'" type="button" title="'+(unb?"Status unbekannt · Tippen schaltet ein":"Tippen zum Schalten")+'">'+(unb?"· ":"")+l.name+"</button>"});
         ch.innerHTML=h}
     }catch(e){}
   }).catch(function(){});
@@ -3014,7 +3019,7 @@ document.addEventListener("click",function(ev){
   var an=b.getAttribute("data-on")!=="1";
   b.disabled=true;
   fetch("/api/licht",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({id:b.getAttribute("data-id"),an:an})})
-  .then(function(){setTimeout(lampenHolen,600)}).catch(function(){b.disabled=false});
+  .then(function(){lampenHolen();setTimeout(lampenHolen,900)}).catch(function(){b.disabled=false});
 });
 setTimeout(lampenHolen,3000);setInterval(lampenHolen,20000);
 
@@ -3830,3 +3835,58 @@ window.gemmaIntern = {
   acadLaden();
   setInterval(acadLaden, 30000);
 })();
+
+/* ---------- AI-Trader-Kachel (Reihe 4, Kay 10.11.) ----------
+   Equity/Heute/Positionen vom Mini-Executor. Quelle: /aitrader-status
+   (vhost-Proxy auf aitrader api.php?what=summary, Token-Gate wie Wettbot).
+   Design wie Wettbot-Kachel (wett-bank/wett-diff/wett-zeile-gross). */
+function aitraderHolen() {
+  fetch(location.origin + "/aitrader-status" +
+        (CFG.token ? "?token=" + encodeURIComponent(CFG.token) : ""),
+        { cache: "no-store" })
+    .then((r) => (r.ok ? r.json() : null))
+    .then((d) => kachelAitrader(d))
+    .catch(() => {});
+}
+
+function kachelAitrader(d) {
+  state.kachelDaten["k-aitrader"] = d || null;
+  const eq = $("ai-equity");
+  if (!eq) return;
+  const tag = $("ai-day"), tot = $("ai-total"),
+        pos = $("ai-positions"), alter = $("ai-alter");
+  if (!d || !d.ok || typeof d.equity !== "number") {
+    eq.textContent = "—";
+    if (tag) { tag.textContent = ""; tag.className = "wett-diff"; }
+    if (tot) tot.textContent = "";
+    if (pos) pos.textContent = "AI Trader gerade nicht erreichbar";
+    if (alter) alter.textContent = "";
+    return;
+  }
+  eq.textContent = "$" + zahlDe(d.equity, 2).replace(".", ",");
+  const dp = typeof d.day_pct === "number" ? d.day_pct : null;
+  if (tag && dp != null) {
+    tag.textContent = (dp >= 0 ? "+" : "-") +
+      zahlDe(Math.abs(dp) * 100, 2).replace(".", ",") + " % heute";
+    tag.className = "wett-diff " + (dp >= 0 ? "mf-hoch" : "mf-runter");
+  }
+  const tp = typeof d.total_pct === "number" ? d.total_pct : null;
+  if (tot && tp != null) {
+    tot.innerHTML = "Gesamt <b>" + (tp >= 0 ? "+" : "-") +
+      zahlDe(Math.abs(tp) * 100, 1).replace(".", ",") +
+      " %</b> · Basis $1.000";
+  }
+  const p = Array.isArray(d.positions) ? d.positions : [];
+  if (pos) {
+    pos.innerHTML = p.length
+      ? "Offen <b>" + p.length + "</b> · " + p.slice(0, 3).map((x) =>
+          String(x.symbol).replace(/-.*$/, "") + " " +
+          zahlDe(x.qty, 3).replace(".", ",")).join(" · ")
+      : "Keine offenen Positionen";
+  }
+  if (alter && d.last_cycle) {
+    alter.textContent = "Stand: " + String(d.last_cycle).slice(0, 16).replace("T", " ");
+  }
+}
+aitraderHolen();
+setInterval(aitraderHolen, 300000);

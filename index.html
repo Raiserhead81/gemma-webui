@@ -13,7 +13,7 @@
 </script>
 <meta name="theme-color" content="#0a0e14">
 <title>Gemma</title>
-<link rel="stylesheet" href="style.css?v=sys8">
+<link rel="stylesheet" href="style.css?v=sys15">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Ccircle cx='32' cy='32' r='30' fill='%237c6cf0'/%3E%3Ccircle cx='32' cy='32' r='18' fill='%23b9a8ff'/%3E%3C/svg%3E">
 </head>
 <body>
@@ -115,7 +115,7 @@
     </div>
 
     <div class="kachel" id="k-lampen">
-      <div class="kachel-label">Lampen <span class="kachel-label-zusatz">Hue · antippen zum Schalten</span></div>
+      <div class="kachel-label">Lampen <span class="kachel-label-zusatz">Hue · Govee · Twinkly · antippen zum Schalten</span></div>
       <div id="lampen-stand" class="lampen-stand">–</div>
       <div id="lampen-chips" class="lampen-chips"></div>
     </div>
@@ -205,9 +205,33 @@
         <div class="academy-letzte" id="acad-letzte">—</div>
       </div>
     </div>
-    <!-- AIBet: Wettbot Paper (virtuell, 100 EUR Bank). Daten:
-         /wettbot-status/status.json (LAN-only, gleiche Herkunft, kein Token).
-         Gross & vom Sofa lesbar: Guthaben, Kennzahlen, naechste 5 Wetten. -->
+
+    <!-- AIBet/Wettbot (Reihe 4, zurueck auf Kays Wunsch 10.11.): Paper-Bank,
+         Bilanz, ROI/CLV. Renderer kachelWett war im app.js nie weg. -->
+    <div class="kachel wett-kachel" id="k-wett">
+      <div class="kachel-label">Wettbot <span class="kachel-label-zusatz">Paper · virtuell</span></div>
+      <div class="wett-koerper">
+        <div id="wett-bank" class="wett-bank">—</div>
+        <div id="wett-diff" class="wett-diff">—</div>
+        <div id="wett-offen" class="wett-zeile-gross">—</div>
+        <div id="wett-bilanz" class="wett-zeile-gross">—</div>
+        <div id="wett-kennzahlen" class="wett-zeile-gross">—</div>
+        <div id="wett-alter" class="kachel-zusatz"></div>
+      </div>
+    </div>
+
+    <!-- AI Trader (Reihe 4, neu 10.11.): Equity/Heute/Positionen vom
+         Mini-Executor, per /aitrader-status (Token-Gate im vhost). -->
+    <div class="kachel aitrader-kachel" id="k-aitrader">
+      <div class="kachel-label">AI Trader <span class="kachel-label-zusatz">Alpaca Crypto · live</span></div>
+      <div class="aitrader-koerper">
+        <div id="ai-equity" class="wett-bank">—</div>
+        <div id="ai-day" class="wett-diff">—</div>
+        <div id="ai-total" class="wett-zeile-gross">—</div>
+        <div id="ai-positions" class="wett-zeile-gross">—</div>
+        <div id="ai-alter" class="kachel-zusatz"></div>
+      </div>
+    </div>
   </section>
 </main>
 
@@ -237,6 +261,6 @@
 </div>
 
 <script src="config.js"></script>
-<script src="app.js?v=sys8"></script>
+<script src="app.js?v=sys11"></script>
 </body>
 </html>
