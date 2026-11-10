@@ -1,0 +1,819 @@
+/* Gemma Station, dunkles Theme fuer Kays Display (1920x1080) und kleiner.
+   Skalierung ueber rem: html font-size folgt der Viewport-Breite.
+   Look wie die Station-App: dunkel, grosse Kacheln, Orb oben. */
+
+:root {
+  --bg: #0a0e14;
+  --karte: #121a26;
+  --karte-rand: #223047;
+  --text: #f2f5fa;
+  --text-dunkel: #8fa3bd;
+  --akzent: #7c6cf0;
+  --akzent-hell: #b9a8ff;
+  --cyan: #4fd1c5;
+  --gruen: #3ddc84;
+  --rot: #ff5c74;
+  --gelb: #ffd166;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+html { font-size: clamp(9px, 0.95vw, 22px); }
+
+body {
+  background:
+    radial-gradient(120rem 60rem at 85% -10%, rgba(124,108,240,0.14), transparent 60%),
+    radial-gradient(90rem 50rem at 0% 110%, rgba(79,209,197,0.10), transparent 60%),
+    var(--bg);
+  color: var(--text);
+  font-family: "Amazon Ember", "Helvetica Neue", Arial, sans-serif;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  -webkit-user-select: none;
+  user-select: none;
+  cursor: default;
+}
+
+/* ---------- Startup / Kiosk-Aufforderung ---------- */
+
+#startup {
+  position: fixed; inset: 0; z-index: 50;
+  display: none;
+  align-items: center; justify-content: center;
+  background: rgba(6, 9, 14, 0.94);
+}
+#startup.sichtbar { display: flex; }
+.startup-box {
+  text-align: center;
+  background: var(--karte);
+  border: 1px solid var(--karte-rand);
+  border-radius: 1.5rem;
+  padding: 3rem 4.5rem;
+  box-shadow: 0 0 6rem rgba(124,108,240,0.25);
+}
+.startup-box h1 { font-size: 2.6rem; margin: 1.2rem 0 0.6rem; }
+.startup-box p { color: var(--text-dunkel); font-size: 1.25rem; margin-bottom: 1.6rem; }
+#kiosk-btn {
+  font-size: 1.9rem;
+  font-weight: 700;
+  color: #06090f;
+  background: linear-gradient(135deg, var(--akzent-hell), var(--cyan));
+  border: 0; border-radius: 1rem;
+  padding: 1.1rem 3.4rem;
+  cursor: pointer;
+}
+.startup-hinweis { margin-top: 1.4rem !important; font-size: 1rem !important; }
+
+/* ---------- Kopf: Uhr + Orb + Verbindung ---------- */
+
+header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1.2rem 3rem 0.4rem;
+  gap: 2rem;
+}
+
+.uhr {
+  font-size: 7.2rem;
+  font-weight: 800;
+  line-height: 1;
+  letter-spacing: 0.02em;
+  font-variant-numeric: tabular-nums;
+}
+.datum {
+  font-size: 1.8rem;
+  color: var(--text-dunkel);
+  margin-top: 0.4rem;
+  text-transform: capitalize;
+}
+
+.orb-block { display: flex; flex-direction: column; align-items: center; gap: 0.7rem; }
+.orb-status { font-size: 1.35rem; color: var(--text-dunkel); }
+
+.orb {
+  width: 8.6rem;
+  aspect-ratio: 1 / 1;
+  border-radius: 50%;
+  position: relative;
+  border: 0;
+  padding: 0;
+  cursor: pointer;
+  background:
+    radial-gradient(circle at 34% 28%, #d9cfff 0%, var(--akzent-hell) 22%, #7c6cf0 48%, #3a2d9c 78%, #1b1460 100%);
+  box-shadow:
+    0 0 4.5rem rgba(124,108,240,0.5),
+    0 0 1.2rem rgba(185,168,255,0.5),
+    inset 0 0 2rem rgba(255,255,255,0.22);
+  animation: orb-puls 4.5s ease-in-out infinite;
+}
+.orb-kern {
+  position: absolute; inset: 34%;
+  border-radius: 50%;
+  background: radial-gradient(circle at 40% 35%, #ffffff, rgba(255,255,255,0.12) 70%);
+  opacity: 0.75;
+}
+.orb-ring {
+  position: absolute; inset: -0.7rem;
+  border-radius: 50%;
+  border: 0.18rem solid rgba(185,168,255,0.35);
+  border-top-color: var(--cyan);
+  animation: orb-dreh 9s linear infinite;
+}
+.orb.hoert {
+  animation: orb-puls 0.9s ease-in-out infinite;
+  background:
+    radial-gradient(circle at 34% 28%, #ffe1e6 0%, #ff9dac 22%, #ff5c74 48%, #8f1d33 78%, #4a0f1c 100%);
+  box-shadow:
+    0 0 7rem rgba(255,92,116,0.6),
+    0 0 2rem rgba(255,157,172,0.8),
+    inset 0 0 2.4rem rgba(255,255,255,0.35);
+}
+.orb.aktiv {
+  animation: orb-puls 1.1s ease-in-out infinite;
+  box-shadow:
+    0 0 7rem rgba(79,209,197,0.65),
+    0 0 2rem rgba(185,168,255,0.8),
+    inset 0 0 2.4rem rgba(255,255,255,0.35);
+}
+.orb.spricht {
+  animation: orb-puls 1.6s ease-in-out infinite;
+  box-shadow:
+    0 0 7rem rgba(185,168,255,0.75),
+    0 0 2rem rgba(79,209,197,0.7),
+    inset 0 0 2.4rem rgba(255,255,255,0.35);
+}
+.orb.aus { animation: none; filter: grayscale(0.85) brightness(0.5); }
+@keyframes orb-puls {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.07); }
+}
+@keyframes orb-dreh { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) {
+  .orb, .orb-ring { animation: none !important; }
+}
+
+.verbindungs-block {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.9rem;
+}
+.mikro-btn {
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: var(--text-dunkel);
+  background: transparent;
+  border: 1px solid var(--karte-rand);
+  border-radius: 2rem;
+  padding: 0.55rem 1.4rem;
+  cursor: pointer;
+}
+.mikro-btn.an {
+  color: #062d1b;
+  background: var(--gruen);
+  border-color: var(--gruen);
+}
+.punkt-zeile { display: flex; align-items: center; gap: 0.6rem; }
+.punkt {
+  width: 0.9rem; height: 0.9rem;
+  border-radius: 50%;
+  background: #2c3a52;
+  display: inline-block;
+}
+.punkt.gruen {
+  background: var(--gruen);
+  box-shadow: 0 0 1rem rgba(61,220,132,0.7);
+}
+.punkt-text { font-size: 1.15rem; color: var(--text-dunkel); }
+
+/* ---------- Hauptbereich: Gespräch links, Kachelraster rechts ---------- */
+
+main {
+  flex: 1;
+  display: grid;
+  grid-template-columns: 36% 1fr;
+  gap: 1.4rem;
+  padding: 0.8rem 3rem 0.6rem;
+  min-height: 0;
+}
+
+.gespraech-kachel, .kachel {
+  background: var(--karte);
+  border: 1px solid var(--karte-rand);
+  border-radius: 1.4rem;
+  padding: 1.2rem 1.5rem;
+  min-height: 0;
+  overflow: hidden;
+  position: relative;
+}
+.kachel-label {
+  font-size: 0.95rem;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--text-dunkel);
+  margin-bottom: 0.7rem;
+}
+
+/* Gespräch links, volle Hoehe */
+
+.gespraech-kachel { display: flex; flex-direction: column; }
+.chat {
+  flex: 1;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 0.9rem;
+  padding-right: 0.5rem;
+  scrollbar-width: none;
+}
+.chat::-webkit-scrollbar { display: none; }
+.chat-zeile {
+  font-size: 1.45rem;
+  line-height: 1.35;
+  padding: 0.7rem 1rem;
+  border-radius: 0.9rem;
+  background: rgba(124,108,240,0.10);
+}
+.chat-kay { background: rgba(79,209,197,0.10); }
+.chat-wer {
+  display: block;
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--text-dunkel);
+  margin-bottom: 0.15rem;
+}
+.chat-kay .chat-wer { color: var(--cyan); }
+.chat-gemma .chat-wer { color: var(--akzent-hell); }
+
+/* Kachelraster: Reihe 1 = Musik/Vital/Heizung/Termine, Reihe 2 =
+   Regenradar als volles Hero-Band (dunkle Karte + animierte Frames),
+   Reihe 3 = Wetter + gemivo-Welt. Feste Hero-Hoehe, 1fr-Reihen teilen
+   sich den Rest, dadurch gleicher Rhythmus statt Kollaps. */
+
+.raster {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  grid-template-rows: minmax(0, 1fr) minmax(15rem, 28vh) minmax(0, 1.15fr);
+  gap: 1.4rem;
+  min-height: 0;
+}
+#k-musik   { grid-column: 1; grid-row: 1; }
+#k-vital   { grid-column: 2; grid-row: 1; }
+#k-heizung { grid-column: 3; grid-row: 1; }
+#k-termine { grid-column: 4; grid-row: 1; }
+#k-radar   { grid-column: 1 / -1; grid-row: 2; }
+#k-wetter  { grid-column: 1 / 3; grid-row: 3; }
+#k-welt    { grid-column: 3 / 5; grid-row: 3; }
+
+.kachel-wert {
+  font-size: 2.5rem;
+  font-weight: 800;
+  line-height: 1.2;
+  letter-spacing: -0.01em;
+}
+.kachel-zusatz {
+  font-size: 1.25rem;
+  color: var(--text-dunkel);
+  margin-top: 0.4rem;
+}
+.kachel-hinweis {
+  position: absolute;
+  right: 1.1rem;
+  bottom: 0.9rem;
+  font-size: 1rem;
+  color: #3a4a66;
+}
+
+/* Musik: Tasten kompakt oben rechts neben dem Label, darunter
+   Cover + Titel. Passt so sicher in die schmale 4er-Reihe. */
+
+.musik-kopf {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 0.2rem;
+}
+.musik-kopf .kachel-label { margin-bottom: 0; }
+.musik-zeile {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+.musik-cover {
+  width: 3.4rem;
+  height: 3.4rem;
+  border-radius: 0.6rem;
+  object-fit: cover;
+  background: #0d1420;
+  flex: none;
+}
+.musik-text { min-width: 0; flex: 1; }
+.musik-text .kachel-wert {
+  font-size: 2.2rem;
+  line-height: 1.05;
+}
+.musik-text .kachel-wert,
+.musik-text .kachel-zusatz {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.musik-tasten {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  flex: none;
+}
+.taste {
+  width: 2.8rem;
+  height: 2.8rem;
+  border-radius: 50%;
+  border: 1px solid var(--karte-rand);
+  background: rgba(124,108,240,0.14);
+  color: var(--text);
+  font-size: 1.2rem;
+  cursor: pointer;
+  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+}
+.taste:active { background: rgba(124,108,240,0.35); }
+.taste-gross {
+  width: 3.8rem;
+  height: 3.8rem;
+  font-size: 1.5rem;
+  background: linear-gradient(135deg, var(--akzent), #5a4ad0);
+  border: 0;
+}
+
+/* Vitaldaten */
+
+.vital-raster {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+}
+.vital-wert span {
+  display: block;
+  font-size: 3rem;
+  font-weight: 800;
+  line-height: 1.05;
+  font-variant-numeric: tabular-nums;
+  background: linear-gradient(180deg, #ffffff, #b9c6dd);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+.vital-wert small {
+  font-size: 1.05rem;
+  color: var(--text-dunkel);
+  letter-spacing: 0.06em;
+}
+.vital-raster + .kachel-zusatz { font-size: 1.05rem; }
+.vital-raster .kachel-zusatz { font-size: 1.25rem; margin-top: 0.6rem; }
+
+/* Heizung */
+
+.heizung-liste, .termin-liste {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+.heizung-zeile, .termin-zeile {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 1rem;
+  font-size: 1.35rem;
+}
+.heizung-name, .termin-was {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.heizung-wert {
+  color: var(--text-dunkel);
+  font-variant-numeric: tabular-nums;
+  flex: none;
+}
+.termin-wann {
+  color: var(--cyan);
+  flex: none;
+  font-size: 1.25rem;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---------- Fuss ---------- */
+
+footer {
+  padding: 0.4rem 3rem 0.8rem;
+  display: flex;
+  justify-content: center;
+}
+.fuss-hinweis {
+  font-size: 1.05rem;
+  color: #3a4a66;
+}
+
+/* ---------- Overlay (Details) ---------- */
+
+#overlay {
+  position: fixed; inset: 0; z-index: 60;
+  display: none;
+  align-items: center; justify-content: center;
+  background: rgba(6, 9, 14, 0.9);
+}
+#overlay.offen { display: flex; }
+#overlay-box {
+  background: var(--karte);
+  border: 1px solid var(--karte-rand);
+  border-radius: 1.5rem;
+  padding: 2.4rem 3rem;
+  width: min(72rem, 88vw);
+  max-height: 78vh;
+  overflow-y: auto;
+  position: relative;
+  box-shadow: 0 0 6rem rgba(0,0,0,0.6);
+}
+#overlay-x {
+  position: absolute;
+  top: 1.1rem; right: 1.1rem;
+  width: 3rem; height: 3rem;
+  border-radius: 50%;
+  border: 1px solid var(--karte-rand);
+  background: transparent;
+  color: var(--text-dunkel);
+  font-size: 1.4rem;
+  cursor: pointer;
+}
+.ov-label {
+  font-size: 1.15rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--text-dunkel);
+  margin-bottom: 1.2rem;
+}
+.ov-inhalt { display: flex; flex-direction: column; gap: 0.8rem; }
+.ov-msg {
+  padding: 0.8rem 1.1rem;
+  border-radius: 0.9rem;
+  background: rgba(124,108,240,0.10);
+}
+.ov-user { background: rgba(79,209,197,0.10); }
+.ov-msg-wer {
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--text-dunkel);
+  margin-bottom: 0.2rem;
+}
+.ov-msg-text { font-size: 1.4rem; line-height: 1.4; }
+.ov-leer { color: var(--text-dunkel); font-size: 1.3rem; }
+.ov-roh-zeile {
+  display: flex;
+  justify-content: space-between;
+  gap: 1.4rem;
+  border-bottom: 1px solid rgba(34,48,71,0.6);
+  padding: 0.55rem 0;
+  font-size: 1.3rem;
+}
+.ov-roh-key { color: var(--text-dunkel); flex: none; }
+.ov-roh-wert { text-align: right; }
+.ov-meta {
+  margin-top: 1.2rem;
+  font-size: 1.05rem;
+  color: var(--text-dunkel);
+}
+
+/* ---------- Text-statt-Sprache ---------- */
+
+#tippen-overlay {
+  position: fixed; inset: 0; z-index: 55;
+  display: none;
+  align-items: center; justify-content: center;
+  background: rgba(6, 9, 14, 0.9);
+}
+#tippen-overlay.offen { display: flex; }
+#tippen-box {
+  background: var(--karte);
+  border: 1px solid var(--karte-rand);
+  border-radius: 1.5rem;
+  padding: 2.2rem 2.6rem;
+  width: min(56rem, 84vw);
+}
+#tippen-form { display: flex; gap: 1rem; margin-top: 1rem; }
+#tippen-eingabe {
+  flex: 1;
+  font-size: 1.6rem;
+  color: var(--text);
+  background: #0d1420;
+  border: 1px solid var(--karte-rand);
+  border-radius: 0.9rem;
+  padding: 0.9rem 1.2rem;
+  outline: none;
+}
+#tippen-form button {
+  font-size: 1.4rem;
+  font-weight: 700;
+  color: #06090f;
+  background: linear-gradient(135deg, var(--akzent-hell), var(--cyan));
+  border: 0;
+  border-radius: 0.9rem;
+  padding: 0.9rem 1.8rem;
+  cursor: pointer;
+}
+
+/* ---------- schmale Screens ---------- */
+
+@media (max-width: 1100px) {
+  main { grid-template-columns: 1fr; grid-template-rows: 40% 1fr; }
+  .uhr { font-size: 4.2rem; }
+}
+
+.fuss-knopf {
+  font-size: 1.05rem;
+  color: #3a4a66;
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+}
+.fuss-knopf:hover { color: var(--text-dunkel); }
+
+/* ---------- Schalter im Kopf (Bilder, Mikro) ---------- */
+
+.schalter-zeile { display: flex; gap: 0.9rem; align-items: center; }
+.bilder-btn {
+  font-size: 1.45rem;
+  font-weight: 700;
+  color: var(--text-dunkel);
+  background: transparent;
+  border: 1px solid var(--karte-rand);
+  border-radius: 2.4rem;
+  padding: 0.7rem 1.8rem;
+  cursor: pointer;
+}
+.bilder-btn.an {
+  color: #04241a;
+  background: var(--cyan);
+  border-color: var(--cyan);
+}
+
+/* ---------- Foto-Flaeche mit Platz-Schalter ----------
+   AN: eigene Spalte zwischen Gespraech und Kachelraster (sanfte Diashow).
+   AUS: Spalte kollabiert komplett, das Kachelraster nutzt die Flaeche.
+   Der Schalter bleibt klein in der Kopfzeile. */
+
+main {
+  grid-template-columns: 30% 26% 1fr;
+  transition: grid-template-columns 0.6s ease;
+}
+main.ohne-fotos { grid-template-columns: 36% 1fr; }
+
+/* ---------- Gespräch-Kollaps (config: zeige_gespraech) ----------
+   AUS: Kachel gar nicht im DOM (app.js legt sie nur bei Bedarf an),
+   Foto- und Kachelraster-Spalte übernehmen den Platz. Die display-
+   Regeln hier sind nur zur Sicherheit, falls die Kachel doch mal
+   wieder im HTML landet. */
+
+main.ohne-gespraech { grid-template-columns: 26% 1fr; }
+main.ohne-gespraech.ohne-fotos { grid-template-columns: 1fr; }
+main.ohne-gespraech .gespraech-kachel { display: none; }
+
+.foto-flaeche {
+  position: relative;
+  border-radius: 1.4rem;
+  overflow: hidden;
+  background: #0d1420;
+  border: 1px solid var(--karte-rand);
+  min-height: 0;
+}
+.foto-bild {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+  opacity: 1;
+  transition: opacity 0.8s ease;
+}
+.foto-leer {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-dunkel);
+  font-size: 1.2rem;
+}
+main.ohne-fotos .foto-flaeche { display: none; }
+main:not(.ohne-fotos) .gespraech-kachel .kachel-label { letter-spacing: 0.14em; }
+
+@media (max-width: 1100px) {
+  main, main.ohne-fotos { grid-template-columns: 1fr; grid-template-rows: 34% 26% 1fr; }
+  main.ohne-gespraech { grid-template-rows: 26% 1fr; }
+  main.ohne-gespraech.ohne-fotos { grid-template-rows: 1fr; }
+  .raster { grid-template-columns: 1fr 1fr; grid-template-rows: auto; }
+  #k-musik, #k-vital, #k-heizung, #k-termine, #k-wetter, #k-radar, #k-welt {
+    grid-column: auto;
+    grid-row: auto;
+  }
+  .radar-karte { min-height: 16rem; flex: none; }
+}
+
+/* hidden-Attribut gewinnt immer (z.B. Foto-Leerhinweis ueber dem Bild) */
+[hidden] { display: none !important; }
+
+
+/* ---------- Ton-Anzeige + Klang-Schalter ---------- */
+.ton {
+  font-size: 1.15rem;
+  font-weight: 600;
+  color: var(--text-dunkel);
+  background: transparent;
+  border: 1px solid var(--karte-rand);
+  border-radius: 2rem;
+  padding: 0.4rem 1.2rem;
+  cursor: pointer;
+}
+.ton.ok { color: var(--gruen); border-color: rgba(61,220,132,0.4); }
+.ton.warn {
+  color: #3d2f00;
+  background: var(--gelb);
+  border-color: var(--gelb);
+  animation: ton-puls 1.6s ease-in-out infinite;
+}
+@keyframes ton-puls {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.65; }
+}
+
+.fuss-hinweis { margin-left: 1.2rem; }
+
+
+/* ---------- Wetter (breite Kachel) + Radar-Overlay ---------- */
+.wetter-kachel { grid-column: 1 / -1; }
+.kachel-label-zusatz {
+  font-weight: 400;
+  letter-spacing: 0.04em;
+  text-transform: none;
+  color: #4a5c7a;
+  margin-left: 0.8rem;
+}
+.wetter-tage { display: flex; gap: 2.5rem; justify-content: space-around; width: 100%; }
+.wtag { text-align: center; min-width: 9rem; }
+.wtag-name {
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: var(--cyan);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+}
+.wtag-icon .wtag-svg, .wtag-svg { width: 5.6rem; height: 5.6rem; }
+.wtag-icon.gross .wtag-svg { width: 8rem; height: 8rem; }
+.wtag-icon { line-height: 0; }
+/* kompakter in der Wand-Kachel, das Overlay behaelt die grossen Icons */
+.wetter-kachel .wtag-svg { width: 3.3rem; height: 3.3rem; display: block; }
+.wetter-kachel .wtag-werte { line-height: 1.2; font-size: 1.45rem; }
+.wetter-kachel .wtag-werte b { font-size: 1.8rem; }
+.wetter-kachel .wtag-regen { font-size: 1rem; }
+.wtag-werte { font-size: 1.6rem; font-variant-numeric: tabular-nums; }
+.wtag-werte b { font-size: 2rem; }
+.wtag-regen { font-size: 1.15rem; color: var(--text-dunkel); }
+.wtag-heute .wtag-name { color: var(--akzent-hell); }
+
+.ov-wetter { display: flex; gap: 4rem; justify-content: space-around; padding: 0.6rem 0 1rem; }
+.ov-wtag { text-align: center; }
+.ov-wtag-temp { font-size: 1.7rem; font-variant-numeric: tabular-nums; }
+.ov-wtag-temp b { font-size: 2.2rem; }
+.radar-bild {
+  width: 100%;
+  max-height: 46vh;
+  object-fit: contain;
+  border-radius: 1rem;
+  background: #0d1420;
+  display: block;
+}
+
+/* ---------- Regenradar: Hero-Band auf der Wand ----------
+   Dunkles Basemap-Mosaik (CARTO dark, statisch gecacht) mit
+   Lübeck-Marker, darüber die animierten Radar-Frames (Rainviewer).
+   Gleiche Frame-/Timer-Maschinerie wie im Wetter-Overlay.
+   Das Label liegt als Chip ÜBER der Karte, die Karte kriegt die
+   volle Kachelhöhe. */
+.radar-kachel {
+  display: flex;
+  flex-direction: column;
+  padding: 1rem;
+}
+.radar-kachel .kachel-label {
+  position: absolute;
+  top: 1.4rem;
+  left: 1.6rem;
+  z-index: 3;
+  margin: 0;
+  background: rgba(6, 10, 16, 0.55);
+  padding: 0.45rem 1rem;
+  border-radius: 2rem;
+  backdrop-filter: blur(0.4rem);
+}
+.radar-karte {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  border-radius: 1rem;
+  overflow: hidden;
+  background: #060a10;
+  border: 1px solid rgba(34, 48, 71, 0.55);
+}
+.radar-mosaik, .radar-ebenen { position: absolute; }
+.radar-karte-tile {
+  position: absolute;
+  width: 256px;
+  height: 256px;
+}
+.radar-karte-labels {
+  position: absolute;
+  width: 256px;
+  height: 256px;
+  opacity: 0.85;
+}
+.radar-ebenen { pointer-events: none; }
+.radar-ebene {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  transition: opacity 0.5s ease;
+}
+.radar-ebene.aktiv { opacity: 0.95; }
+.radar-ebene img {
+  position: absolute;
+  width: 256px;
+  height: 256px;
+}
+.radar-marker {
+  position: absolute;
+  transform: translate(-50%, -100%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.3rem;
+  font-size: 1.15rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: #eaf0fa;
+  text-shadow: 0 0.15rem 0.6rem rgba(0, 0, 0, 0.95);
+  pointer-events: none;
+  z-index: 2;
+}
+.radar-marker-punkt {
+  width: 1rem;
+  height: 1rem;
+  border-radius: 50%;
+  background: var(--cyan);
+  box-shadow: 0 0 0 0.35rem rgba(79,209,197,0.35), 0 0 1.4rem rgba(79,209,197,0.9);
+}
+.radar-hinweis {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-dunkel);
+  font-size: 1.3rem;
+  background: rgba(6, 10, 16, 0.65);
+  border-radius: 1rem;
+}
+.radar-quelle {
+  position: absolute;
+  right: 0.8rem;
+  bottom: 0.6rem;
+  z-index: 3;
+  font-size: 0.85rem;
+  letter-spacing: 0.04em;
+  color: #6d80a0;
+  background: rgba(6, 10, 16, 0.6);
+  padding: 0.25rem 0.7rem;
+  border-radius: 1.6rem;
+  pointer-events: none;
+}
+
+/* ---------- gemivo-Welt + News ---------- */
+.app-liste { display: flex; flex-direction: column; gap: 0.35rem; }
+.app-zeile {
+  display: flex;
+  align-items: center;
+  gap: 0.9rem;
+  font-size: 1.3rem;
+  border-bottom: 1px solid rgba(34,48,71,0.5);
+  padding: 0.35rem 0;
+}
+.punktapp { width: 0.85rem; height: 0.85rem; border-radius: 50%; background: var(--gruen); flex: none; }
+.punktapp.rot { background: var(--rot); box-shadow: 0 0 0.8rem rgba(255,92,116,0.6); }
+.app-name { flex: 1; }
+.app-ms { color: var(--text-dunkel); font-variant-numeric: tabular-nums; }

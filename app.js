@@ -2751,7 +2751,7 @@ function kachelWett(d) {
     const t = Date.parse(d.updated_at);
     if (isFinite(t)) {
       const min = Math.round((Date.now() - t) / 60000);
-      alter.textContent = min < 5 ? "Stand: gerade aktualisiert"
+      alter.textContent = min < 5 ? "Stand: gerade"
         : "Stand: vor " + min + " Min";
     }
   }
@@ -3853,14 +3853,14 @@ function kachelAitrader(d) {
   state.kachelDaten["k-aitrader"] = d || null;
   const eq = $("ai-equity");
   if (!eq) return;
-  const tag = $("ai-day"), tot = $("ai-total"),
-        pos = $("ai-positions"), alter = $("ai-alter");
+  const tag = $("ai-day"),
+        pos = $("ai-positions"), alter = $("ai-alter"), kurve = $("ai-kurve");
   if (!d || !d.ok || typeof d.equity !== "number") {
     eq.textContent = "—";
     if (tag) { tag.textContent = ""; tag.className = "wett-diff"; }
-    if (tot) tot.textContent = "";
     if (pos) pos.textContent = "AI Trader gerade nicht erreichbar";
     if (alter) alter.textContent = "";
+    if (kurve) { kurve.replaceChildren(); kurve.hidden = true; }
     return;
   }
   eq.textContent = "$" + zahlDe(d.equity, 2).replace(".", ",");
@@ -3870,22 +3870,34 @@ function kachelAitrader(d) {
       zahlDe(Math.abs(dp) * 100, 2).replace(".", ",") + " % heute";
     tag.className = "wett-diff " + (dp >= 0 ? "mf-hoch" : "mf-runter");
   }
-  const tp = typeof d.total_pct === "number" ? d.total_pct : null;
-  if (tot && tp != null) {
-    tot.innerHTML = "Gesamt <b>" + (tp >= 0 ? "+" : "-") +
-      zahlDe(Math.abs(tp) * 100, 1).replace(".", ",") +
-      " %</b> · Basis $1.000";
-  }
+  /* Positionen: 2 Symbole + Restzaehlung - eine Zeile, nichts abgeschnitten */
   const p = Array.isArray(d.positions) ? d.positions : [];
   if (pos) {
     pos.innerHTML = p.length
-      ? "Offen <b>" + p.length + "</b> · " + p.slice(0, 3).map((x) =>
-          String(x.symbol).replace(/-.*$/, "") + " " +
-          zahlDe(x.qty, 3).replace(".", ",")).join(" · ")
+      ? "Offen <b>" + p.length + "</b> · " +
+        p.slice(0, 2).map((x) => String(x.symbol).replace(/-.*$/, "")).join(" · ") +
+        (p.length > 2 ? " +" + (p.length - 2) : "")
       : "Keine offenen Positionen";
   }
-  if (alter && d.last_cycle) {
-    alter.textContent = "Stand: " + String(d.last_cycle).slice(0, 16).replace("T", " ");
+  /* Stand kurz (nur Uhrzeit) + Gesamt in EINER Zeile statt zwei */
+  const tp = typeof d.total_pct === "number" ? d.total_pct : null;
+  let standTxt = "";
+  if (d.last_cycle) {
+    const t = new Date(String(d.last_cycle));
+    if (isFinite(t)) standTxt = "Stand " +
+      t.toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" }) + " Uhr";
+  }
+  if (alter) alter.textContent = standTxt;
+  /* Equity-Sparkline (Hausstil kurveSvg, echte Series aus dem Mirror) */
+  if (kurve) {
+    const werte = Object.values((d && d.series) || {})
+      .filter((v) => typeof v === "number" && isFinite(v));
+    if (werte.length >= 2) {
+      const svg = kurveSvg(werte);
+      if (svg) { svg.setAttribute("preserveAspectRatio", "none"); }
+      kurve.replaceChildren(svg || document.createTextNode(""));
+      kurve.hidden = !svg;
+    } else { kurve.replaceChildren(); kurve.hidden = true; }
   }
 }
 aitraderHolen();

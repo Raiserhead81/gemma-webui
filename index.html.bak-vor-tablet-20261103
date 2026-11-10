@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#0a0e14">
+<title>Gemma</title>
+<link rel="stylesheet" href="style.css?v=sys8">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Ccircle cx='32' cy='32' r='30' fill='%237c6cf0'/%3E%3Ccircle cx='32' cy='32' r='18' fill='%23b9a8ff'/%3E%3C/svg%3E">
+</head>
+<body>
+
+<div id="startup">
+  <div class="startup-box">
+    <div class="orb orb-startup" aria-hidden="true"></div>
+    <h1>Gemma</h1>
+    <p>Antippen startet Vollbild und hält das Display wach.</p>
+    <button id="kiosk-btn" type="button">Starten</button>
+    <p class="startup-hinweis" id="startup-hinweis">Danach den Orb antippen und sprechen.</p>
+  </div>
+</div>
+
+<header>
+  <div class="uhr-block">
+    <div id="uhr" class="uhr">00:00</div>
+    <div id="datum" class="datum">Sonntag, 7. Oktober</div>
+  </div>
+  <div class="verbindungs-block">
+    <div class="schalter-zeile">
+      <button id="klang-btn" class="bilder-btn" type="button" title="Wo Gemmas Stimme ausgegeben wird">Klang</button>
+      <button id="foto-btn" class="bilder-btn" type="button" aria-pressed="true" title="Fotos an oder aus">Foto</button>
+      <button id="bilder-btn" class="bilder-btn" type="button" aria-pressed="true">Bilder</button>
+      <button id="mikro-btn" class="mikro-btn" type="button">Mikro aktivieren</button>
+    </div>
+    <button id="ton" class="ton" type="button" hidden>Ton</button>
+    <span class="punkt-zeile">
+      <span id="punkt" class="punkt" aria-hidden="true"></span>
+      <span id="punkt-text" class="punkt-text"></span>
+    </span>
+  </div>
+</header>
+
+<!-- Geteilte SVG-Verlauefe (, Markt-Kurven): einmal definiert,
+     von allen Ringen ueber url(#...) benutzt. Außerhalb des Rasters. -->
+<svg id="svg-defs" width="0" height="0" aria-hidden="true" focusable="false"
+     style="position:absolute;width:0;height:0;overflow:hidden">
+  <defs>
+    <linearGradient id="ring-verlauf" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#4fd1c5"/>
+      <stop offset="55%" stop-color="#8fd7c8"/>
+      <stop offset="100%" stop-color="#ffd166"/>
+    </linearGradient>
+    <linearGradient id="kurve-verlauf" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#4fd1c5"/>
+      <stop offset="100%" stop-color="#ffd166"/>
+    </linearGradient>
+    <linearGradient id="kurve-flaeche-verlauf" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#ffd166"/>
+      <stop offset="100%" stop-color="#4fd1c5" stop-opacity="0"/>
+    </linearGradient>
+  </defs>
+</svg>
+
+<main id="haupt">
+  <!-- Gesprächs-Kachel wird von app.js nur angelegt, wenn
+       config.js zeige_gespraech: true setzt (Standard: weg). -->
+
+  <section class="foto-flaeche" id="k-fotos">
+    <img id="foto-bild" class="foto-bild" alt="Foto">
+    <div id="foto-leer" class="foto-leer" hidden>Keine Fotos gefunden.</div>
+  </section>
+
+  <section class="raster">
+    <div class="kachel musik musik-leer" id="k-musik">
+      <!-- Cover als dunkler Hintergrund (nur wenn Musik laeuft + Bilder an) -->
+      <div id="musik-bg" class="musik-bg" aria-hidden="true"></div>
+      <div class="musik-bg-dunkel" aria-hidden="true"></div>
+      <div class="musik-body">
+        <div class="musik-kopf">
+          <div class="musik-label-zeile">
+            <div class="kachel-label">Musik</div>
+            <span id="musik-geraet" class="musik-geraet" hidden></span>
+          </div>
+          <div class="musik-tasten">
+            <button class="taste" id="m-vorher" type="button" aria-label="Vorheriger Titel">&#9198;</button>
+            <button class="taste taste-gross" id="m-play" type="button" aria-label="Abspielen oder Pause">&#9654;</button>
+            <button class="taste" id="m-naechster" type="button" aria-label="Nächster Titel">&#9197;</button>
+          </div>
+        </div>
+        <div class="musik-hero">
+          <div id="musik-cover-platz" class="musik-cover-platz" aria-hidden="true">&#9834;</div>
+          <img id="musik-cover" class="musik-cover" alt="" hidden>
+          <div class="musik-text">
+            <div id="musik-titel" class="musik-titel">Nichts läuft</div>
+            <div id="musik-kuenstler" class="musik-kuenstler">—</div>
+          </div>
+          <div id="musik-eq" class="musik-eq" aria-hidden="true">
+            <span></span><span></span><span></span><span></span><span></span>
+          </div>
+        </div>
+        <div class="musik-transport">
+          <span id="musik-pos" class="musik-zeit">–:––</span>
+          <div class="musik-bahn"><div id="musik-fuell" class="musik-fuell"></div></div>
+          <span id="musik-dauer" class="musik-zeit">–:––</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="kachel" id="k-vital">
+      <div class="kachel-label">Bio <span class="kachel-label-zusatz"></span></div>
+      <div id="vital-ringe" class="vital-ringe"></div>
+      <div id="vital-fakten" class="vital-fakten"></div>
+    </div>
+
+    <div class="kachel" id="k-heizung">
+      <div class="kachel-label">Heizung</div>
+      <div id="heizung-liste" class="heizung-liste"><div class="kachel-zusatz">—</div></div>
+    </div>
+
+    <div class="kachel" id="k-termine">
+      <div class="termin-kopf">
+        <div class="kachel-label">Termine</div>
+        <span id="termin-chip" class="termin-chip" hidden></span>
+      </div>
+      <div id="termin-liste" class="termin-liste"><div class="kachel-zusatz">—</div></div>
+    </div>
+
+    <!-- Regenradar: Hero-Band. Dunkles Karten-Mosaik (CARTO) mit
+         Lübeck-Marker, animierte Radar-Frames laufen darüber. -->
+    <div class="kachel radar-kachel" id="k-radar">
+      <div class="kachel-label">Regenradar <span class="kachel-label-zusatz">Lübeck · letzte 90 Minuten · live</span></div>
+      <div id="radar-karte" class="radar-karte">
+        <div id="radar-mosaik" class="radar-mosaik"></div>
+        <div id="radar-marker" class="radar-marker"><span class="radar-marker-punkt"></span>Lübeck</div>
+        <div class="radar-quelle">Karte © Esri · Radar © Rainviewer</div>
+      </div>
+      <div id="radar-kachel-hinweis" class="radar-hinweis" hidden></div>
+    </div>
+
+    <div class="kachel wetter-kachel" id="k-wetter">
+      <div class="kachel-label">Wetter <span class="kachel-label-zusatz">Lübeck · 3 Tage · antippen für Radar</span></div>
+      <div id="wetter-tage" class="wetter-tage"><div class="kachel-zusatz">—</div></div>
+    </div>
+
+    <div class="kachel system-kachel" id="k-welt">
+      <div class="kachel-label">System <span class="kachel-label-zusatz">gemivo &middot; Mac Mini</span></div>
+      <div class="system-spalten">
+        <div class="system-spalte">
+          <div class="system-kopf">gemivo <span class="server-icon-wrap" id="server-label-stufe" aria-hidden="true"></span></div>
+          <div id="server-zahlen" class="server-zahlen"><div class="kachel-zusatz">&mdash;</div></div>
+          <div id="welt-zeile2" class="kachel-zusatz system-fuss">&mdash;</div>
+          <div id="welt-alter" class="kachel-zusatz system-stand"></div>
+        </div>
+        <div class="system-spalte">
+          <div class="system-kopf">Mac Mini <span class="server-icon-wrap" id="mini-label-stufe" aria-hidden="true"></span></div>
+          <div id="mini-infos" class="server-zahlen"><div class="kachel-zusatz">&mdash;</div></div>
+          <div id="mini-zeile2" class="kachel-zusatz system-fuss">&mdash;</div>
+          <div id="mini-druck" class="kachel-zusatz system-stand"></div>
+          <div id="mini-temp" class="kachel-zusatz system-stand"></div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- Markt-Ampel: VIX als Wind-Metapher (Kay: "nur wie der Markt ist"),
+         darunter die Fakten VIX + DAX-Veränderung. Quelle: /status -> markt
+         (Yahoo-Finance, 10-Min-Cache, tolerant). -->
+    <div class="kachel markt-kachel" id="k-markt">
+      <div class="kachel-label">Markt <span class="kachel-label-zusatz">VIX · DAX</span></div>
+      <div class="markt-koerper">
+        <div class="markt-wort-zeile">
+          <svg class="markt-wind" viewBox="0 0 48 26" aria-hidden="true">
+            <path d="M2 7 h24 a5 5 0 1 0 -5 -6"/>
+            <path d="M2 14 h34 a5.5 5.5 0 1 1 -5 7"/>
+            <path d="M2 21 h16"/>
+          </svg>
+          <div id="markt-wort" class="markt-wort">—</div>
+        </div>
+        <div id="markt-skala" class="markt-skala" aria-hidden="true">
+          <span class="ms-zone ruhig"></span><span class="ms-zone wind"></span><span class="ms-zone unruhig"></span><span class="ms-zone sturm"></span>
+          <span id="markt-marker" class="ms-marker"></span>
+        </div>
+        <div id="markt-fakten" class="markt-fakten">—</div>
+      </div>
+    </div>
+
+    <!-- Gemma Academy (Kays Trainings-Cockpit): Pass-Rate, Fortschritt,
+         letzte Lektion. Quelle: gemmini /academy/latest.json (ohne Auth). -->
+    <div class="kachel academy-kachel" id="k-academy">
+      <div class="kachel-label">Gemma Academy <span class="kachel-label-zusatz">10.000 Lektionen · 24/7</span></div>
+      <div class="academy-koerper">
+        <div class="academy-haupt">
+          <span class="academy-rate" id="acad-rate">—</span>
+          <span class="academy-zahlen" id="acad-zahlen">—</span>
+        </div>
+        <div class="academy-balken"><div id="acad-bar"></div></div>
+        <div class="academy-letzte" id="acad-letzte">—</div>
+      </div>
+    </div>
+    <!-- AIBet: Wettbot Paper (virtuell, 100 EUR Bank). Daten:
+         /wettbot-status/status.json (LAN-only, gleiche Herkunft, kein Token).
+         Gross & vom Sofa lesbar: Guthaben, Kennzahlen, naechste 5 Wetten. -->
+  </section>
+</main>
+
+<footer>
+  <button id="tippen-btn" class="fuss-knopf" type="button">Stattdessen tippen</button>
+  <span id="fuss-hinweis" class="fuss-hinweis"></span>
+</footer>
+
+<div id="overlay" role="dialog" aria-modal="true" aria-hidden="true">
+  <div id="overlay-box">
+    <button id="overlay-x" type="button" aria-label="Schließen">&#10005;</button>
+    <div id="overlay-label" class="ov-label"></div>
+    <div id="overlay-inhalt" class="ov-inhalt"></div>
+    <div id="overlay-meta" class="ov-meta"></div>
+  </div>
+</div>
+
+<div id="tippen-overlay" aria-hidden="true">
+  <div id="tippen-box">
+    <div class="ov-label">Statt sprechen: tippen</div>
+    <form id="tippen-form">
+      <input id="tippen-eingabe" type="text" autocomplete="off"
+             placeholder="Was soll Gemma tun?">
+      <button type="submit">Senden</button>
+    </form>
+  </div>
+</div>
+
+<script src="config.js"></script>
+<script src="app.js?v=sys8"></script>
+</body>
+</html>

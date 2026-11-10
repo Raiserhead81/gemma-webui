@@ -380,6 +380,13 @@ main {
   overflow: hidden;
   text-overflow: ellipsis;
 }
+/* AI-Trader rechte Spalte: breiter Zahlenspalte zuliebe schmal - Zeilen
+   duerfen hier zweizeilig laufen, damit NICHTS abgeschnitten wird (Kay). */
+#k-aitrader .wett-zeile-gross, #k-aitrader .kachel-zusatz {
+  white-space: normal;
+  overflow-wrap: break-word;
+}
+#k-aitrader .wett-bank { font-size: 30px; }
 /* Academy kompakt (Reihe 4 = 191px Budget): sonst drueckt sie Reihe 1+3
    zusammen und Wetter/ZTermine werden abgeschnitten (gemessen 10.11.). */
 #k-academy .academy-koerper { gap: 6px; }
@@ -400,6 +407,38 @@ main {
 /* Radar-Band gibt 1vh an die Kachel-Reihen (Reihe 3 braucht die Zeilen) */
 .raster { grid-template-rows: minmax(0, 0.85fr) minmax(14rem, 23vh) minmax(0, 1.45fr); }
 
+/* ---------- Reihe 4 Epic-Layer (Kay 10.11.: "noch nicht geil") ----------
+   Akzentkanten im Hausstil (Label-Linie), Equity-Sparkline, dezente Motion. */
+#k-academy .kachel-label::after {
+  background: linear-gradient(90deg, rgba(61, 220, 132, 0.95), rgba(61, 220, 132, 0.15));
+  box-shadow: 0 0 0.5rem rgba(61, 220, 132, 0.3);
+}
+#k-wett .kachel-label::after {
+  background: linear-gradient(90deg, rgba(255, 209, 102, 0.95), rgba(255, 209, 102, 0.15));
+  box-shadow: 0 0 0.5rem rgba(255, 209, 102, 0.35);
+}
+#k-aitrader .kachel-label::after {
+  background: linear-gradient(90deg, rgba(79, 209, 197, 0.95), rgba(124, 108, 240, 0.35));
+  box-shadow: 0 0 0.5rem rgba(79, 209, 197, 0.3);
+}
+/* Wettbot im Plus: sanfter Gold-Schein auf der Bank (Hausstil, kein Blinken) */
+#k-wett .wett-bank.wett-plus { text-shadow: 0 0 1.4rem rgba(255, 209, 102, 0.35); }
+
+/* Equity-Sparkline: volle Breite unten in der AI-Trader-Kachel, flach
+   (30px, keine Text-Labels - die grosse Zahl zeigt den Wert), sonst frisst
+   sie den Reihen 1/3 die Hoehe (gemessen 10.11.: ai min-content war 230). */
+#k-aitrader .ai-kurve { grid-column: 1 / -1; grid-row: 6; margin-top: 2px; }
+#k-aitrader .ai-kurve .ov-kurve { width: 100%; height: 22px; display: block; }
+#k-aitrader .ai-kurve .kurve-text { display: none; }
+#k-aitrader .wett-zeile-gross { font-size: 13px; }
+#k-aitrader .wett-zeile-gross b { font-size: 14px; }
+@media (prefers-reduced-motion: no-preference) {
+  .ai-kurve .ov-kurve { animation: kurve-rein 0.9s ease-out both; }
+}
+@keyframes kurve-rein {
+  from { opacity: 0; transform: translateY(5px); }
+}
+
 /* Angeschnittener Kachelinhalt (Termine-Restzeilen, Heizung) fadet sanft
    in den Kachel-Grund statt hart an der Kante abzuschneiden. */
 #k-termine::after, #k-heizung::after, #k-lampen::after {
@@ -418,6 +457,7 @@ main {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  font-size: 0.85rem;
 }
 
 .kachel-wert {
