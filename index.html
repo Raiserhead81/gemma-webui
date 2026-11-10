@@ -13,7 +13,7 @@
 </script>
 <meta name="theme-color" content="#0a0e14">
 <title>Gemma</title>
-<link rel="stylesheet" href="style.css?v=sys21">
+<link rel="stylesheet" href="style.css?v=sys24">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Ccircle cx='32' cy='32' r='30' fill='%237c6cf0'/%3E%3Ccircle cx='32' cy='32' r='18' fill='%23b9a8ff'/%3E%3C/svg%3E">
 </head>
 <body>
@@ -192,10 +192,13 @@
       </div>
     </div>
 
+    <!-- Reihe 4 (Kay 10.11.): EIGENES 3-Spalten-Grid, alle drei Kacheln
+         exakt gleich gross - das 16er-Feinraster kann 16/3 nicht teilen. -->
+    <div class="reihe4">
     <!-- Gemma Academy (Kays Trainings-Cockpit): Pass-Rate, Fortschritt,
          letzte Lektion. Quelle: gemmini /academy/latest.json (ohne Auth). -->
     <div class="kachel academy-kachel" id="k-academy">
-      <div class="kachel-label">Gemma Academy <span class="kachel-label-zusatz">10.000 Lektionen · 24/7</span></div>
+      <div class="kachel-label">Gemma Academy <span class="kachel-label-zusatz">10.000 · 24/7</span></div>
       <div class="academy-koerper">
         <div class="academy-haupt">
           <span class="academy-rate" id="acad-rate">—</span>
@@ -232,6 +235,7 @@
         <div id="ai-kurve" class="ai-kurve" aria-hidden="true"></div>
       </div>
     </div>
+    </div><!-- /reihe4 -->
   </section>
 </main>
 
@@ -261,6 +265,6 @@
 </div>
 
 <script src="config.js"></script>
-<script src="app.js?v=sys21"></script>
+<script src="app.js?v=sys24"></script>
 </body>
 </html>
